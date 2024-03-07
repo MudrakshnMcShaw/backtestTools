@@ -17,6 +17,5 @@ setuptools.setup(
         "Bug Tracker": "https://github.com/MudrakshnMcShaw/backtestTools/issues"
     },
     install_requires=['pymongo', 'pandas', 'numpy'],
-    package_dir={"": "src"},
-    packages=setuptools.find_packages(where="src"),
+    packages=['backtestTools'],
 )
