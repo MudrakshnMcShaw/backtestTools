@@ -13,12 +13,9 @@ def connectToMongo():
     Returns:
         MongoClient: A MongoDB client object representing the connection.
     '''
-    package_dir = os.path.dirname(__file__)
-    config_path = os.path.join(package_dir, 'config.ini')
-
     # Read config file
     configReader = ConfigParser()
-    configReader.read(config_path)
+    configReader.read("/root/backtestToolsConfig/config.ini")
 
     # Get MongoDB Credentials
     host = configReader.get('DBParams', f'host')

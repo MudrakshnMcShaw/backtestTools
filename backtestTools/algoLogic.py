@@ -2,7 +2,7 @@ import os
 import logging
 import pandas as pd
 from datetime import datetime
-from backtestTools.expiry import getExpiryData
+from expiry import getExpiryData
 
 
 class baseAlgoLogic:
