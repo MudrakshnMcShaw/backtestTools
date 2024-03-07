@@ -13,6 +13,8 @@
     * [getPutSym](#algoLogic.optAlgoLogic.getPutSym)
   * [optIntraDayAlgoLogic](#algoLogic.optIntraDayAlgoLogic)
   * [optOverNightAlgoLogic](#algoLogic.optOverNightAlgoLogic)
+  * [equityOverNightAlgoLogic](#algoLogic.equityOverNightAlgoLogic)
+    * [\_\_init\_\_](#algoLogic.equityOverNightAlgoLogic.__init__)
 * [expiry](#expiry)
   * [getExpiryData](#expiry.getExpiryData)
 * [histData](#histData)
@@ -23,6 +25,7 @@
   * [getEquityBacktestData](#histData.getEquityBacktestData)
 * [util](#util)
   * [setup\_logger](#util.setup_logger)
+  * [createPortfolio](#util.createPortfolio)
 
 <a id="algoLogic"></a>
 
@@ -265,6 +268,41 @@ Inherits from optAlgoLogic class.
 
   Inherits all attributes and functions from the optAlgoLogic class.
 
+<a id="algoLogic.equityOverNightAlgoLogic"></a>
+
+## equityOverNightAlgoLogic Objects
+
+```python
+class equityOverNightAlgoLogic(baseAlgoLogic)
+```
+
+Equity Overnight Algo Logic Class
+Inherits from baseAlgoLogic class.
+
+**Attributes**:
+
+  Inherits all attributes and functions from the baseAlgoLogic class.
+
+<a id="algoLogic.equityOverNightAlgoLogic.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(devName, strategyName, version, stockName)
+```
+
+Initializes an instance of the equityOverNightAlgoLogic class.
+
+**Arguments**:
+
+- `devName` _string_ - Developer name.
+  
+- `strategyName` _string_ - Name of the trading strategy.
+  
+- `version` _string_ - Version of the trading strategy.
+  
+- `stockName` _string_ - Name of the stock.
+
 <a id="expiry"></a>
 
 # expiry
@@ -430,6 +468,37 @@ Set up a logger with a specified name, log file, and logging level.
 
 **Example**:
 
-  logger = setup_logger('my_logger', 'example.log')
-  logger.info('This is an information message.')
+```
+    logger = setup_logger('my_logger', 'example.log')
+    logger.info('This is an information message.')
+```
+
+<a id="util.createPortfolio"></a>
+
+#### createPortfolio
+
+```python
+def createPortfolio(filename, stocksPerProcess=4)
+```
+
+Create a portfolio from a file containing stock symbols seperated by newline.
+
+**Arguments**:
+
+- `filename` _string_ - The path to the file containing stock symbols.
+  
+- `stocksPerProcess` _int_ - The number of stocks per sublist (default is 4).
+  
+
+**Returns**:
+
+- `list` - A list of 'stocksPerProcess' number of sublists, each containing stock symbols.
+  
+
+**Example**:
+
+```
+    portfolio = createPortfolio('stocks.txt', stocksPerProcess=5)s
+    print(portfolio)
+```
 

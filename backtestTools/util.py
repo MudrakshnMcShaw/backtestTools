@@ -16,8 +16,10 @@ def setup_logger(name, log_file, level=logging.INFO):
         logging.Logger: The configured logger object.
 
     Example:
+    ```
         logger = setup_logger('my_logger', 'example.log')
         logger.info('This is an information message.')
+    ```
     """
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     handler = logging.FileHandler(log_file)
@@ -32,6 +34,23 @@ def setup_logger(name, log_file, level=logging.INFO):
 
 
 def createPortfolio(filename, stocksPerProcess=4):
+    """
+    Create a portfolio from a file containing stock symbols seperated by newline.
+
+    Parameters:
+        filename (string): The path to the file containing stock symbols.
+
+        stocksPerProcess (int): The number of stocks per sublist (default is 4).
+
+    Returns:
+        list: A list of 'stocksPerProcess' number of sublists, each containing stock symbols.
+
+    Example:
+    ```
+        portfolio = createPortfolio('stocks.txt', stocksPerProcess=5)s
+        print(portfolio)
+    ```
+    """
     portfolio = []
 
     with open(filename, 'r') as file:
