@@ -401,3 +401,48 @@ class optOverNightAlgoLogic(optAlgoLogic):
             f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
         self.closedPnl.to_csv(
             f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
+
+
+class equityOverNightAlgoLogic(baseAlgoLogic):
+    '''
+    Equity Overnight Algo Logic Class
+    Inherits from baseAlgoLogic class.
+
+    Attributes:
+        Inherits all attributes and functions from the baseAlgoLogic class.
+    '''
+
+    def __init__(self, devName, strategyName, version, stockName):
+        '''
+        Initializes an instance of the equityOverNightAlgoLogic class.
+
+        Parameters:
+            devName (string): Developer name.
+
+            strategyName (string): Name of the trading strategy.
+
+            version (string): Version of the trading strategy.
+
+            stockName (string): Name of the stock.
+        '''
+        super().__init__(devName, strategyName, version)
+        self.stockName = stockName
+
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
+        super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv")
+
+    def exitOrder(self, index, exitType, exitPrice=None):
+        super().exitOrder(index, exitType, exitPrice)
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv")
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_closePnl.csv")
+
+    def pnlCalculator(self):
+        super().pnlCalculator()
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv")
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_closePnl.csv")
