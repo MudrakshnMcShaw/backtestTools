@@ -30,3 +30,25 @@ def setup_logger(name, log_file, level=logging.INFO):
     logging.basicConfig(level=level, filemode='a', force=True)
 
     return logger
+
+
+def createPortfolio(filename, stocksPerProcess=4):
+    portfolio = []
+
+    with open(filename, 'r') as file:
+        elements = [line.strip() for line in file]
+
+    # Create sublists with four elements each
+    t = len(elements)//stocksPerProcess
+    l = len(elements)//t
+    for i in range(0, t):
+        if i < (t-1):
+            sublist = elements[i*l:(i*l)+l]
+            portfolio.append(sublist)
+        else:
+            sublist = elements[i*l:len(elements)]
+            portfolio.append(sublist)
+
+    logging.info(f"Portfolio created: {portfolio}")
+
+    return portfolio
