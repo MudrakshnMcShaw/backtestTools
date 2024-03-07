@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from histData import connectToMongo
+from backtestTools.histData import connectToMongo
 
 
 def getExpiryData(date, sym):
