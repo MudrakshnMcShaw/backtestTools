@@ -13,9 +13,10 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/MudrakshnMcShaw/backtestTools',
-    # project_urls={
-    #     "Bug Tracker": "https://github.com/MudrakshnMcShaw/strategyTools/issues"
-    # },
-    packages=['backtestTools'],
+    project_urls={
+        "Bug Tracker": "https://github.com/MudrakshnMcShaw/backtestTools/issues"
+    },
     install_requires=['pymongo', 'pandas', 'numpy'],
+    package_dir={"": "src"},
+    packages=setuptools.find_packages(where="src"),
 )
