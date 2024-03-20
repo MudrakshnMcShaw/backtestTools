@@ -1,9 +1,9 @@
 import logging
 import multiprocessing as mp
 from datetime import datetime, timedelta, time
-from backtestTools.src.backtestTools.expiry import getExpiryData
-from backtestTools.src.backtestTools.algoLogic import optIntraDayAlgoLogic
-from backtestTools.src.backtestTools.histData import connectToMongo, getFnoHistData, getFnoBacktestData
+from backtestTools.expiry import getExpiryData
+from backtestTools.algoLogic import optIntraDayAlgoLogic
+from backtestTools.histData import connectToMongo, getFnoHistData, getFnoBacktestData
 
 
 # Define a class algoLogic that inherits from optIntraDayAlgoLogic

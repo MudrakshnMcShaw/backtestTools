@@ -1,10 +1,10 @@
 import logging
 import numpy as np
 import talib as ta
-from backtestTools.src.backtestTools.expiry import getExpiryData
+from backtestTools.expiry import getExpiryData
 from datetime import datetime, time
-from backtestTools.src.backtestTools.algoLogic import optOverNightAlgoLogic
-from backtestTools.src.backtestTools.histData import getFnoHistData, getFnoBacktestData
+from backtestTools.algoLogic import optOverNightAlgoLogic
+from backtestTools.histData import getFnoHistData, getFnoBacktestData
 
 
 # Define a class algoLogic that inherits from optOverNightAlgoLogic

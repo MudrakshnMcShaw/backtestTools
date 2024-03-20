@@ -1,4 +1,7 @@
 import logging
+import pandas as pd
+from datetime import datetime, time, timedelta
+from backtestTools.histData import getEquityHistData, getFnoHistData
 
 
 def setup_logger(name, log_file, level=logging.INFO):
@@ -70,3 +73,228 @@ def createPortfolio(filename, stocksPerProcess=4):
     logging.info(f"Portfolio created: {portfolio}")
 
     return portfolio
+
+
+# Add code to calculate daily report for options strategy
+def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1), mtm=False, fno=True):
+    '''
+    Calculates the daily report for an options trading strategy based on the closed trades.
+
+    Parameters:
+        closedPnl (DataFrame): DataFrame containing information about closed trades.
+
+        saveFileDir (str): Directory path where the daily report CSV file will be saved.
+
+        timeFrame (timedelta, optional): Time frame for each period in the daily report. Default is 1 minute.
+
+        mtm (bool, optional): Flag indicating whether mark-to-market (MTM) calculation should be performed. Default is False.
+
+        fno (bool, optional): Flag indicating whether the strategy involves trading in futures and options (F&O). Default is True.
+
+    Returns:
+        dailyReport (DataFrame): DataFrame containing the calculated daily report.
+
+    '''
+    # Initialize daily report DataFrame
+    startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
+    endDatetime = (closedPnl["Key"].iloc[-1].to_pydatetime()) + timeFrame
+
+    # startDatetime = startDatetime
+    # endDate = endDatetime.date() + timedelta(days=10)
+    # endDatetime = endDatetime + timeFrame
+
+    dailyReport = pd.DataFrame(
+        columns=["Date",  "OpenTrades", "CapitalInvested", "CumulativePnl", "mtmPnl"])
+
+    lastCumulativePnl = 0
+    lastPnlForMtmCal = 0
+    currentDatetime = startDatetime
+
+    # Loop through each day within the specified date range
+    while currentDatetime <= endDatetime:
+        cumulativePnl = 0
+
+        # nextDate = currentDate+timedelta(days=1)
+        nextDatetime = currentDatetime+timeFrame
+
+        if currentDatetime.date() != nextDatetime.date():
+            lastPnlForMtmCal = lastCumulativePnl
+
+        # Skip weekends and non-trading hours
+        if (currentDatetime.time() < time(9, 15)) | (currentDatetime.time() > time(15, 30)) | (currentDatetime.weekday() in [5, 6]):
+            currentDatetime = nextDatetime
+            continue
+
+        # Calculate pnl for closed trades
+        # closedTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
+        #     closedPnl["ExitTime"].dt.date < nextDate)]
+        closedTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
+            closedPnl["ExitTime"] < nextDatetime)]
+        cumulativePnl += closedTrades["Pnl"].sum()
+
+        # Calculate capital invested for open trades
+        # openTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
+        #     closedPnl["ExitTime"].dt.date >= nextDate)]
+        openTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
+            closedPnl["ExitTime"] >= nextDatetime)]
+        capitalInvested = (openTrades['EntryPrice']
+                           * openTrades['Quantity']).sum()
+
+        # Perform mark-to-market calculation if required
+        if mtm:
+            for symbol in openTrades["Symbol"].unique():
+                # currentDatetime = datetime.combine(
+                #     currentDatetime, time(15, 29, 0))
+                try:
+                    if fno == True:
+                        currentData = getFnoHistData(
+                            symbol, currentDatetime.timestamp())
+                    else:
+                        currentData = getEquityHistData(
+                            symbol, currentDatetime.timestamp())
+                        # stockSymbol, currentDatetime.timestamp())
+                    if currentData is None:
+                        cumulativePnl = lastCumulativePnl
+                        break
+                except Exception as e:
+                    cumulativePnl = lastCumulativePnl
+                    break
+
+                symbolOpenTrades = openTrades[openTrades["Symbol"] == symbol].copy(
+                    deep=True)
+                symbolOpenTrades["Pnl"] = (
+                    currentData['o'] - symbolOpenTrades['EntryPrice']) * symbolOpenTrades['Quantity']
+                cumulativePnl += symbolOpenTrades["Pnl"].sum()
+
+        # Update daily report DataFrame
+        currentEntryData = pd.DataFrame({
+            "Date": currentDatetime,
+            "OpenTrades": len(openTrades),
+            "CapitalInvested": capitalInvested,
+            "CumulativePnl": cumulativePnl,
+            "mtmPnl": cumulativePnl - lastPnlForMtmCal,
+        }, index=[0])
+
+        dailyReport = pd.concat(
+            [dailyReport, currentEntryData], ignore_index=True)
+
+        lastCumulativePnl = cumulativePnl
+        currentDatetime = nextDatetime
+
+        dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
+
+    # Calculate peak and drawdown
+    dailyReport["Peak"] = dailyReport["CumulativePnl"].cummax()
+    dailyReport["Drawdown"] = dailyReport["CumulativePnl"] - \
+        dailyReport["Peak"]
+
+    # dailyReport["mtmPnl"] = dailyReport["CumulativePnl"].diff()
+
+    dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
+    print("dailyReport.csv saved")
+
+    return dailyReport
+
+
+def limitCapital(originalClosedPnl, saveFileDir, maxCapitalAmount):
+    '''
+    Limits the capital invested in open trades to a specified maximum amount.
+
+    Parameters:
+        originalClosedPnl (DataFrame): DataFrame containing information about closed trades.
+
+        saveFileDir (str): Directory path where the modified closed trades CSV file will be saved.
+
+        maxCapitalAmount (float): Maximum amount of capital allowed to be invested in open trades.
+
+    Returns:
+        closedPnl (DataFrame): DataFrame containing the modified closed trades after limiting capital.
+    '''
+    closedPnl = originalClosedPnl.copy(deep=True)
+
+    # Initialize daily report DataFrame
+    startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
+    endDatetime = closedPnl["Key"].iloc[-1].to_pydatetime()
+
+    startDate = startDatetime.date()
+    endDate = endDatetime.date() + timedelta(days=10)
+
+    currentDate = startDate
+
+    while currentDate <= endDate:
+        nextDate = currentDate+timedelta(days=1)
+
+        # Filter open trades and calculate capital invested
+        openTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
+            closedPnl["ExitTime"].dt.date >= nextDate)]
+        capitalInvested = (openTrades['EntryPrice']
+                           * openTrades['Quantity']).sum()
+
+        # Fix capital and drop extra trades for which more capital is required
+        while capitalInvested > maxCapitalAmount:
+            closedPnl.drop(openTrades.index[-1], inplace=True)
+            closedPnl.reset_index(inplace=True, drop=True)
+
+            openTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
+                closedPnl["ExitTime"].dt.date >= nextDate)]
+
+            capitalInvested = (
+                openTrades['EntryPrice'] * openTrades['Quantity']).sum()
+
+        currentDate = nextDate
+
+    closedPnl.to_csv(f"{saveFileDir}/closedPnlFixCap.csv")
+    print("closedPnlFixCap.csv saved.")
+
+    return closedPnl
+
+
+def generateReportFile(dailyReport, saveFileDir):
+    '''
+    Generates a report summary based on the daily report DataFrame and saves it to a text file.
+
+    Parameters:
+        dailyReport (DataFrame): DataFrame containing the daily report information.
+
+        saveFileDir (str): Directory path where the report text file will be saved.
+
+    Returns:
+        max_drawdown_percentage (float): Maximum drawdown percentage calculated based on the report.
+    '''
+    # Generate and save report summary to a text file
+    reportFile = open(f"{saveFileDir}report.txt", "w")
+
+    dailyReport = dailyReport[dailyReport["CapitalInvested"] != 0]
+
+    reportFile.write(
+        f"Maximum Capital Invested: {dailyReport['CapitalInvested'].max()}\n")
+    reportFile.write(
+        f"Mean Capital Invested: {dailyReport['CapitalInvested'].mean()}\n")
+    reportFile.write(
+        f"Median Capital Invested: {dailyReport['CapitalInvested'].median()}\n\n\n")
+
+    max_drawdown = dailyReport['Drawdown'].min()
+    peak_value = dailyReport[dailyReport['Drawdown']
+                             == max_drawdown]['Peak'].max()
+    max_drawdown_cap_invested = dailyReport[dailyReport['Drawdown']
+                                            == max_drawdown]['CapitalInvested'].max()
+
+    max_drawdown_percentage = (max_drawdown / peak_value) * 100
+    max_drawdown_mean_capital = (
+        max_drawdown/dailyReport["CapitalInvested"].mean()) * 100
+
+    reportFile.write(f"Maximum Drawdown: {max_drawdown}\n")
+    reportFile.write(
+        f"Peak Value used for maximum drawdown calculation: {peak_value}\n\n")
+    reportFile.write(
+        f"Capital Invested during maximum drawdown calculation: {max_drawdown_cap_invested}\n\n")
+
+    reportFile.write(
+        f"Maximum Drawdown Percentage (Mean Cap): {max_drawdown_mean_capital}\n")
+    reportFile.write(
+        f"Maximum Drawdown Percentage (Peak): {max_drawdown_percentage}\n\n")
+
+    reportFile.close()
+    print("report.txt saved.")
+
+    return max_drawdown_percentage

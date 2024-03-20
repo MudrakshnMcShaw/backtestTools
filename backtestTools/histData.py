@@ -44,6 +44,7 @@ def getFnoHistData(symbol, timestamp):
     Returns:
         dict: A dictionary containing historical data if found, otherwise None.
     '''
+
     try:
         conn = connectToMongo()
 
@@ -65,25 +66,25 @@ def getFnoHistData(symbol, timestamp):
 
             '''Checking another collection if data not found'''
 
-            db = conn['testing']
-            collection = db["FNO_OHLC_1min"]
-            rec = collection.find_one(
-                {'$and': [{'sym': symbol},
-                          {"ti": timestamp}]})
+            # db = conn['testing']
+            # collection = db["FNO_OHLC_1min"]
+            # rec = collection.find_one(
+            #     {'$and': [{'sym': symbol},
+            #               {"ti": timestamp}]})
 
-            if rec:
-                return rec
-            else:
-                for i in range(15):
-                    rec = collection.find_one(
-                        {'$and': [{'sym': symbol},
-                                  {"ti": timestamp + (i*60)}]})
-                    if rec:
-                        return rec
+            # if rec:
+            #     return rec
+            # else:
+            #     for i in range(15):
+            #         rec = collection.find_one(
+            #             {'$and': [{'sym': symbol},
+            #                       {"ti": timestamp + (i*60)}]})
+            #         if rec:
+            #             return rec
 
-            '''If not found raise exception'''
-            raise Exception(
-                f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp+(i*60))}")
+            # '''If not found raise exception'''
+            # raise Exception(
+            #     f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp+(i*60))}")
     except Exception as e:
         raise Exception(e)
 
@@ -108,12 +109,15 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
         if isinstance(startDateTime, datetime) and isinstance(startDateTime, datetime):
             startTimestamp = startDateTime.timestamp()
             endTimestamp = endDateTime.timestamp()
+        elif isinstance(startDateTime, int) and isinstance(startDateTime, int):
+            startTimestamp = float(startDateTime)
+            endTimestamp = float(endDateTime)
         elif isinstance(startDateTime, float) and isinstance(startDateTime, float):
             startTimestamp = startDateTime
             endTimestamp = endDateTime
         else:
             raise Exception(
-                "startDateTime or endDateTime is not a timestamp(float) or datetime object")
+                "startDateTime or endDateTime is not a timestamp(float or int) or datetime object")
 
         conn = connectToMongo()
 
@@ -144,46 +148,47 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
             })
             df_resample.index = (df_resample.index.values.astype(
                 np.int64) // 10 ** 9) - 19800
+            df_resample.insert(0, 'ti', df_resample.index)
 
             return df_resample
 
         '''Checking another collection if data not found'''
-        if not rec:
-            db = conn["testing"]
-            collection = db["FNO_OHLC_1min"]
+        # if not rec:
+        #     db = conn["testing"]
+        #     collection = db["FNO_OHLC_1min"]
 
-            rec = collection.find(
-                {'$and': [{'sym': symbol}, {"ti": {'$gte': startTimestamp, '$lte': endTimestamp}}]})
+        #     rec = collection.find(
+        #         {'$and': [{'sym': symbol}, {"ti": {'$gte': startTimestamp, '$lte': endTimestamp}}]})
 
-            rec = list(rec)
-            if rec:
-                df = pd.DataFrame(rec)
+        #     rec = list(rec)
+        #     if rec:
+        #         df = pd.DataFrame(rec)
 
-                df.drop_duplicates(subset="ti", inplace=True)
-                df.sort_values(by=["ti"], inplace=True, ascending=True)
-                df.dropna(inplace=True)
-                df.set_index("ti", inplace=True)
+        #         df.drop_duplicates(subset="ti", inplace=True)
+        #         df.sort_values(by=["ti"], inplace=True, ascending=True)
+        #         df.dropna(inplace=True)
+        #         df.set_index("ti", inplace=True)
 
-                df.index = pd.to_datetime(df.index, unit='s')
-                df.index = df.index + timedelta(hours=5, minutes=30)
-                df = df.between_time('09:15:00', '15:29:00')
+        #         df.index = pd.to_datetime(df.index, unit='s')
+        #         df.index = df.index + timedelta(hours=5, minutes=30)
+        #         df = df.between_time('09:15:00', '15:29:00')
 
-                df_resample = df.resample(interval).agg({
-                    'o': 'first',
-                    'h': 'max',
-                    'l': 'min',
-                    'c': 'last'
-                })
+        #         df_resample = df.resample(interval).agg({
+        #             'o': 'first',
+        #             'h': 'max',
+        #             'l': 'min',
+        #             'c': 'last'
+        #         })
 
-                df_resample["ti"] = df_resample["ti"].timestamp() - 19800
-                return df_resample
+        #         df_resample["ti"] = df_resample["ti"].timestamp() - 19800
+        #         return df_resample
     except Exception as e:
         raise Exception(e)
 
 
 def getEquityHistData(symbol, timestamp):
     '''
-    Retrieves historical data for a given equity symbol and timestamp from MongoDB collection.
+    Retrieves 1-minute historical data for a given equity symbol and timestamp from MongoDB collection.
 
     Parameters:
         symbol (string): The symbol for which historical data is requested.
@@ -196,7 +201,7 @@ def getEquityHistData(symbol, timestamp):
     try:
         conn = connectToMongo()
 
-        db = conn['STOCK_DAY_1']
+        db = conn['STOCK_MINUTE_1']
         collection = db.Data
         rec = collection.find_one(
             {'$and': [{'sym': symbol},
@@ -205,13 +210,19 @@ def getEquityHistData(symbol, timestamp):
         if rec:
             return rec
         else:
+            for i in range(15):
+                rec = collection.find_one(
+                    {'$and': [{'sym': symbol},
+                              {"ti": timestamp + (i*60)}]})
+                if rec:
+                    return rec
             raise Exception(
                 f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp)}")
     except Exception as e:
         raise Exception(e)
 
 
-def getEquityBacktestData(symbol, startDateTime, endDateTime):
+def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
     '''
     Retrieves backtest data i.e. range of data for a given equity symbol, start and end datetime, and interval.
 
@@ -231,30 +242,49 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime):
         if isinstance(startDateTime, datetime) and isinstance(startDateTime, datetime):
             startTimestamp = startDateTime.timestamp()
             endTimestamp = endDateTime.timestamp()
+        elif isinstance(startDateTime, int) and isinstance(startDateTime, int):
+            startTimestamp = float(startDateTime)
+            endTimestamp = float(endDateTime)
         elif isinstance(startDateTime, float) and isinstance(startDateTime, float):
             startTimestamp = startDateTime
             endTimestamp = endDateTime
         else:
             raise Exception(
-                "startDateTime or endDateTime is not a timestamp(float) or datetime object")
+                "startDateTime or endDateTime is not a timestamp(float or int) or datetime object")
 
         conn = connectToMongo()
 
-        db = conn["STOCK_DAY_1"]
+        db = conn["STOCK_MINUTE_1"]
         collection = db.Data
 
         rec = collection.find(
             {'$and': [{'sym': symbol}, {"ti": {'$gte': startTimestamp, '$lte': endTimestamp}}]})
+        rec = list(rec)
 
         if rec:
-            df = pd.DataFrame(list(rec))
+            df = pd.DataFrame(rec)
 
-            df.drop_duplicates(subset="ti", inplace=True)
-            df["ti"] = df["ti"] + 33300  # Adjust 1-day data timestamps
-            df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.dropna(inplace=True)
+            df.drop_duplicates(subset="ti", inplace=True)
+            df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.set_index("ti", inplace=True)
 
-            return df
+            df.index = pd.to_datetime(df.index, unit='s')
+            df.index = df.index + timedelta(hours=5, minutes=30)
+            df = df.between_time('09:15:00', '15:29:00')
+
+            df_resample = df.resample(interval).agg({
+                'o': 'first',
+                'h': 'max',
+                'l': 'min',
+                'c': 'last'
+            })
+
+            df_resample.index = (df_resample.index.values.astype(
+                np.int64) // 10 ** 9) - 19800
+            df_resample.insert(0, 'ti', df_resample.index)
+
+            return df_resample
+
     except Exception as e:
         raise Exception(e)

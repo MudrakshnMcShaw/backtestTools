@@ -29,8 +29,8 @@ def getExpiryData(date, sym):
 
         conn = connectToMongo()
 
-        db = conn["testing"]
-        collection = db[f"FNO_Expiry_BT"]
+        db = conn["FNO_Expiry"]
+        collection = db[f"Data"]
 
         rec = collection.find({'Sym': sym})
         rec = list(rec)
@@ -48,23 +48,23 @@ def getExpiryData(date, sym):
                     break
 
         '''Checking another collection if expiry not found'''
-        if not expiryDict:
-            collection = db[f"FNO_Expiry"]
+        # if not expiryDict:
+        #     collection = db[f"FNO_Expiry"]
 
-            rec = collection.find({'Sym': sym})
-            rec = list(rec)
+        #     rec = collection.find({'Sym': sym})
+        #     rec = list(rec)
 
-            if rec:
-                df = pd.DataFrame(rec)
-                df["Date"] = pd.to_datetime(df["Date"])
-                df["Date"] = df["Date"] + pd.Timedelta(hours=15, minutes=30)
-                df.set_index("Date", inplace=True)
-                df.sort_index(inplace=True, ascending=True)
+        #     if rec:
+        #         df = pd.DataFrame(rec)
+        #         df["Date"] = pd.to_datetime(df["Date"])
+        #         df["Date"] = df["Date"] + pd.Timedelta(hours=15, minutes=30)
+        #         df.set_index("Date", inplace=True)
+        #         df.sort_index(inplace=True, ascending=True)
 
-                for index, row in df.iterrows():
-                    if getDatetime <= index:
-                        expiryDict = row.to_dict()
-                        break
+        #         for index, row in df.iterrows():
+        #             if getDatetime <= index:
+        #                 expiryDict = row.to_dict()
+        #                 break
         return expiryDict
 
     except Exception as e:

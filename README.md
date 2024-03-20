@@ -15,6 +15,8 @@
   * [optOverNightAlgoLogic](#algoLogic.optOverNightAlgoLogic)
   * [equityOverNightAlgoLogic](#algoLogic.equityOverNightAlgoLogic)
     * [\_\_init\_\_](#algoLogic.equityOverNightAlgoLogic.__init__)
+  * [equityIntradayAlgoLogic](#algoLogic.equityIntradayAlgoLogic)
+    * [\_\_init\_\_](#algoLogic.equityIntradayAlgoLogic.__init__)
 * [expiry](#expiry)
   * [getExpiryData](#expiry.getExpiryData)
 * [histData](#histData)
@@ -26,6 +28,9 @@
 * [util](#util)
   * [setup\_logger](#util.setup_logger)
   * [createPortfolio](#util.createPortfolio)
+  * [calculateDailyReport](#util.calculateDailyReport)
+  * [limitCapital](#util.limitCapital)
+  * [generateReportFile](#util.generateReportFile)
 
 <a id="algoLogic"></a>
 
@@ -72,6 +77,8 @@ This class serves as a base for more specific algorithmic trading strategies.
   > backtestResultsCandleData: File directory to store OHLC Data csv
   
   > backtestResultsStrategyLogs: File directory to store strategy logs
+  
+- `strategyLogger` _logging_ - Logger to log relevant info
 
 <a id="algoLogic.baseAlgoLogic.__init__"></a>
 
@@ -288,20 +295,47 @@ Inherits from baseAlgoLogic class.
 #### \_\_init\_\_
 
 ```python
-def __init__(devName, strategyName, version, stockName)
+def __init__(stockName, fileDir)
 ```
 
-Initializes an instance of the equityOverNightAlgoLogic class.
+Initializes an instance of the `equityOverNightAlgoLogic` class.
 
 **Arguments**:
 
-- `devName` _string_ - Developer name.
+- `stockName` _string_ - Name of the stock for which the algorithm is designed.
   
-- `strategyName` _string_ - Name of the trading strategy.
+- `fileDir` _Dictionary_ - Dictionary containing file directories for storing files.
+
+<a id="algoLogic.equityIntradayAlgoLogic"></a>
+
+## equityIntradayAlgoLogic Objects
+
+```python
+class equityIntradayAlgoLogic(baseAlgoLogic)
+```
+
+Equity Intraday Algo Logic Class
+Inherits from baseAlgoLogic class.
+
+**Attributes**:
+
+  Inherits all attributes and functions from the baseAlgoLogic class.
+
+<a id="algoLogic.equityIntradayAlgoLogic.__init__"></a>
+
+#### \_\_init\_\_
+
+```python
+def __init__(stockName, fileDir)
+```
+
+Initializes an instance of the `equityIntradayAlgoLogic` class.
+
+**Arguments**:
+
+- `stockName` _string_ - Name of the stock for which the algorithm is designed.
   
-- `version` _string_ - Version of the trading strategy.
-  
-- `stockName` _string_ - Name of the stock.
+- `fileDir` _Dictionary_ - Dictionary containing file directories for storing files.
 
 <a id="expiry"></a>
 
@@ -400,7 +434,7 @@ Retrieves backtest data i.e. range of data for a given Fno symbol or Indices sym
 def getEquityHistData(symbol, timestamp)
 ```
 
-Retrieves historical data for a given equity symbol and timestamp from MongoDB collection.
+Retrieves 1-minute historical data for a given equity symbol and timestamp from MongoDB collection.
 
 **Arguments**:
 
@@ -418,7 +452,7 @@ Retrieves historical data for a given equity symbol and timestamp from MongoDB c
 #### getEquityBacktestData
 
 ```python
-def getEquityBacktestData(symbol, startDateTime, endDateTime)
+def getEquityBacktestData(symbol, startDateTime, endDateTime, interval)
 ```
 
 Retrieves backtest data i.e. range of data for a given equity symbol, start and end datetime, and interval.
@@ -501,4 +535,79 @@ Create a portfolio from a file containing stock symbols seperated by newline.
     portfolio = createPortfolio('stocks.txt', stocksPerProcess=5)s
     print(portfolio)
 ```
+
+<a id="util.calculateDailyReport"></a>
+
+#### calculateDailyReport
+
+```python
+def calculateDailyReport(closedPnl,
+                         saveFileDir,
+                         timeFrame=timedelta(minutes=1),
+                         mtm=False,
+                         fno=True)
+```
+
+Calculates the daily report for an options trading strategy based on the closed trades.
+
+**Arguments**:
+
+- `closedPnl` _DataFrame_ - DataFrame containing information about closed trades.
+  
+- `saveFileDir` _str_ - Directory path where the daily report CSV file will be saved.
+  
+- `timeFrame` _timedelta, optional_ - Time frame for each period in the daily report. Default is 1 minute.
+  
+- `mtm` _bool, optional_ - Flag indicating whether mark-to-market (MTM) calculation should be performed. Default is False.
+  
+- `fno` _bool, optional_ - Flag indicating whether the strategy involves trading in futures and options (F&O). Default is True.
+  
+
+**Returns**:
+
+- `dailyReport` _DataFrame_ - DataFrame containing the calculated daily report.
+
+<a id="util.limitCapital"></a>
+
+#### limitCapital
+
+```python
+def limitCapital(originalClosedPnl, saveFileDir, maxCapitalAmount)
+```
+
+Limits the capital invested in open trades to a specified maximum amount.
+
+**Arguments**:
+
+- `originalClosedPnl` _DataFrame_ - DataFrame containing information about closed trades.
+  
+- `saveFileDir` _str_ - Directory path where the modified closed trades CSV file will be saved.
+  
+- `maxCapitalAmount` _float_ - Maximum amount of capital allowed to be invested in open trades.
+  
+
+**Returns**:
+
+- `closedPnl` _DataFrame_ - DataFrame containing the modified closed trades after limiting capital.
+
+<a id="util.generateReportFile"></a>
+
+#### generateReportFile
+
+```python
+def generateReportFile(dailyReport, saveFileDir)
+```
+
+Generates a report summary based on the daily report DataFrame and saves it to a text file.
+
+**Arguments**:
+
+- `dailyReport` _DataFrame_ - DataFrame containing the daily report information.
+  
+- `saveFileDir` _str_ - Directory path where the report text file will be saved.
+  
+
+**Returns**:
+
+- `max_drawdown_percentage` _float_ - Maximum drawdown percentage calculated based on the report.
 

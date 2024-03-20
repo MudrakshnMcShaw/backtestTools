@@ -1,14 +1,12 @@
-import unittest
-# from backtestTools.expiry import getExpiryData
-from backtestTools.src.backtestTools.expiry import getExpiryData
-from datetime import datetime, time
-from backtestTools.src.backtestTools.algoLogic import optOverNightAlgoLogic
-from backtestTools.src.backtestTools.histData import getFnoHistData, getFnoBacktestData
 import logging
 import numpy as np
 import talib as ta
-import sys
-sys.path.insert(1, '/root/backtestTools')
+from backtestTools.expiry import getExpiryData
+from datetime import datetime, time, timedelta
+from backtestTools.algoLogic import optOverNightAlgoLogic
+from backtestTools.util import calculateDailyReport, limitCapital, generateReportFile
+from backtestTools.histData import getFnoHistData, getFnoBacktestData
+# sys.path.insert(1, '/root/backtestTools')
 
 
 # Define a class algoLogic that inherits from optOverNightAlgoLogic
@@ -220,6 +218,8 @@ class algoLogic(optOverNightAlgoLogic):
         self.pnlCalculator()
         self.combinePnlCsv()
 
+        return self.closedPnl, self.fileDir["backtestResultsStrategyUid"]
+
 
 if __name__ == "__main__":
     # Define Strategy Nomenclature
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     # Define Start date and End date
     startDate = datetime(2021, 1, 1, 9, 15)
-    endDate = datetime(2021, 1, 10, 15, 30)
+    endDate = datetime(2021, 1, 5, 15, 30)
 
     # Create algoLogic object
     algo = algoLogic(devName, strategyName, version)
@@ -239,4 +239,16 @@ if __name__ == "__main__":
     indexName = 'NIFTY 50'
 
     # Execute the algorithm
-    algo.run(startDate, endDate, baseSym, indexName)
+    print("test")
+    closedPnl, fileDir = algo.run(startDate, endDate, baseSym, indexName)
+    print(closedPnl)
+    print(fileDir)
+
+    print("Calculating Daily Pnl")
+    dr = calculateDailyReport(closedPnl, fileDir,
+                              timeFrame=timedelta(minutes=1), mtm=True)
+
+    limitCapital(closedPnl, fileDir, maxCapitalAmount=1000)
+
+    generateReportFile(dr, fileDir)
+    print("\t[Completed]")
