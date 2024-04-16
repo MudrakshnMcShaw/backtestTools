@@ -101,7 +101,7 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
     closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
 
     startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
-    endDatetime = (closedPnl["Key"].iloc[-1].to_pydatetime()) + timeFrame
+    endDatetime = (closedPnl["ExitTime"].iloc[-1].to_pydatetime()) + timeFrame
 
     dailyReport = pd.DataFrame(
         columns=["Date",  "OpenTrades", "CapitalInvested", "CumulativePnl", "mtmPnl"])
@@ -187,6 +187,12 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
 
         lastCumulativePnl = cumulativePnl
         currentDatetime = nextDatetime
+
+        # Save and print progress
+        progress_percentage = (
+            (currentDatetime - startDatetime) / (endDatetime - startDatetime)) * 100
+        print(f"Progress: {progress_percentage:.2f}%", end="\r")
+        dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
 
         dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
 

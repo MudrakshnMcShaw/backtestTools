@@ -47,24 +47,6 @@ def getExpiryData(date, sym):
                     expiryDict = row.to_dict()
                     break
 
-        '''Checking another collection if expiry not found'''
-        # if not expiryDict:
-        #     collection = db[f"FNO_Expiry"]
-
-        #     rec = collection.find({'Sym': sym})
-        #     rec = list(rec)
-
-        #     if rec:
-        #         df = pd.DataFrame(rec)
-        #         df["Date"] = pd.to_datetime(df["Date"])
-        #         df["Date"] = df["Date"] + pd.Timedelta(hours=15, minutes=30)
-        #         df.set_index("Date", inplace=True)
-        #         df.sort_index(inplace=True, ascending=True)
-
-        #         for index, row in df.iterrows():
-        #             if getDatetime <= index:
-        #                 expiryDict = row.to_dict()
-        #                 break
         return expiryDict
 
     except Exception as e:

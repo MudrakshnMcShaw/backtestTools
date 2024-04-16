@@ -64,27 +64,6 @@ def getFnoHistData(symbol, timestamp):
                 if rec:
                     return rec
 
-            '''Checking another collection if data not found'''
-
-            # db = conn['testing']
-            # collection = db["FNO_OHLC_1min"]
-            # rec = collection.find_one(
-            #     {'$and': [{'sym': symbol},
-            #               {"ti": timestamp}]})
-
-            # if rec:
-            #     return rec
-            # else:
-            #     for i in range(15):
-            #         rec = collection.find_one(
-            #             {'$and': [{'sym': symbol},
-            #                       {"ti": timestamp + (i*60)}]})
-            #         if rec:
-            #             return rec
-
-            # '''If not found raise exception'''
-            # raise Exception(
-            #     f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp+(i*60))}")
     except Exception as e:
         raise Exception(e)
 
@@ -121,67 +100,54 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
 
         conn = connectToMongo()
 
-        db = conn["OHLC_MINUTE_1_New"]
+        if interval[-1:] == 'D':
+            db = conn["OHLC_DAY_1"]
+        else:
+            db = conn["OHLC_MINUTE_1_New"]
         collection = db.Data
 
         rec = collection.find(
             {'$and': [{'sym': symbol}, {"ti": {'$gte': startTimestamp, '$lte': endTimestamp}}]})
-
         rec = list(rec)
+
         if rec:
             df = pd.DataFrame(rec)
-            df.drop_duplicates(subset="ti", inplace=True)
-            # df.reset_index(drop=True, inplace=True)
-            df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.dropna(inplace=True)
+            df.drop_duplicates(subset="ti", inplace=True)
+            df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.set_index("ti", inplace=True)
 
             df.index = pd.to_datetime(df.index, unit='s')
             df.index = df.index + timedelta(hours=5, minutes=30)
-            df = df.between_time('09:15:00', '15:29:00')
 
-            df_resample = df.resample(interval).agg({
-                'o': 'first',
-                'h': 'max',
-                'l': 'min',
-                'c': 'last'
-            })
+            if interval[-1:] == 'D':
+                df_resample = df.resample(interval).agg({
+                    'o': 'first',
+                    'h': 'max',
+                    'l': 'min',
+                    'c': 'last'
+                })
+            else:
+                df = df.between_time('09:15:00', '15:29:00')
+                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg({
+                    'o': 'first',
+                    'h': 'max',
+                    'l': 'min',
+                    'c': 'last'
+                })
+
             df_resample.index = (df_resample.index.values.astype(
                 np.int64) // 10 ** 9) - 19800
             df_resample.insert(0, 'ti', df_resample.index)
 
+            df_resample.dropna(inplace=True)
+
+            datetimeCol = pd.to_datetime(df_resample.index, unit='s')
+            datetimeCol = datetimeCol + timedelta(hours=5, minutes=30)
+            df_resample.insert(loc=1, column='datetime', value=datetimeCol)
+
             return df_resample
 
-        '''Checking another collection if data not found'''
-        # if not rec:
-        #     db = conn["testing"]
-        #     collection = db["FNO_OHLC_1min"]
-
-        #     rec = collection.find(
-        #         {'$and': [{'sym': symbol}, {"ti": {'$gte': startTimestamp, '$lte': endTimestamp}}]})
-
-        #     rec = list(rec)
-        #     if rec:
-        #         df = pd.DataFrame(rec)
-
-        #         df.drop_duplicates(subset="ti", inplace=True)
-        #         df.sort_values(by=["ti"], inplace=True, ascending=True)
-        #         df.dropna(inplace=True)
-        #         df.set_index("ti", inplace=True)
-
-        #         df.index = pd.to_datetime(df.index, unit='s')
-        #         df.index = df.index + timedelta(hours=5, minutes=30)
-        #         df = df.between_time('09:15:00', '15:29:00')
-
-        #         df_resample = df.resample(interval).agg({
-        #             'o': 'first',
-        #             'h': 'max',
-        #             'l': 'min',
-        #             'c': 'last'
-        #         })
-
-        #         df_resample["ti"] = df_resample["ti"].timestamp() - 19800
-        #         return df_resample
     except Exception as e:
         raise Exception(e)
 
@@ -254,7 +220,10 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
 
         conn = connectToMongo()
 
-        db = conn["STOCK_MINUTE_1"]
+        if interval[-1:] == 'D':
+            db = conn["STOCK_DAY_1"]
+        else:
+            db = conn["STOCK_MINUTE_1"]
         collection = db.Data
 
         rec = collection.find(
@@ -271,18 +240,33 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
 
             df.index = pd.to_datetime(df.index, unit='s')
             df.index = df.index + timedelta(hours=5, minutes=30)
-            df = df.between_time('09:15:00', '15:29:00')
 
-            df_resample = df.resample(interval).agg({
-                'o': 'first',
-                'h': 'max',
-                'l': 'min',
-                'c': 'last'
-            })
+            if interval[-1:] == 'D':
+                df_resample = df.resample(interval).agg({
+                    'o': 'first',
+                    'h': 'max',
+                    'l': 'min',
+                    'c': 'last'
+                })
+
+            else:
+                df = df.between_time('09:15:00', '15:29:00')
+                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg({
+                    'o': 'first',
+                    'h': 'max',
+                    'l': 'min',
+                    'c': 'last'
+                })
 
             df_resample.index = (df_resample.index.values.astype(
                 np.int64) // 10 ** 9) - 19800
             df_resample.insert(0, 'ti', df_resample.index)
+
+            df_resample.dropna(inplace=True)
+
+            datetimeCol = pd.to_datetime(df_resample.index, unit='s')
+            datetimeCol = datetimeCol + timedelta(hours=5, minutes=30)
+            df_resample.insert(loc=1, column='datetime', value=datetimeCol)
 
             return df_resample
 
