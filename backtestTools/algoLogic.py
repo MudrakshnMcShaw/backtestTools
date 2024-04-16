@@ -229,11 +229,28 @@ class baseAlgoLogic:
 
             closedPnl (DataFrame): Combined DataFrame of closed trades.
         '''
-        # Read and preprocess Open trades data
-        openCsvFiles = [file for file in os.listdir(
-            self.fileDir["backtestResultsOpenPnl"]) if file.endswith(".csv")]
-        openPnl = pd.concat(
-            [pd.read_csv(os.path.join(self.fileDir["backtestResultsOpenPnl"], file)) for file in openCsvFiles])
+        openPnl = pd.DataFrame(columns=[
+            "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl"])
+        closedPnl = pd.DataFrame(columns=["Key", "ExitTime", "Symbol", "EntryPrice",
+                                          "ExitPrice", "Quantity", "PositionStatus", "Pnl", "ExitType"])
+
+        openCsvFiles = []
+        for file in os.listdir(os.path.join(os.getcwd(), self.fileDir["backtestResultsOpenPnl"])):
+            if file.endswith(".csv"):
+                openCsvFiles.append(os.path.join(os.getcwd(), os.path.join(
+                    self.fileDir["backtestResultsOpenPnl"], file)))
+
+        for csvFile in openCsvFiles:
+            openPnl = pd.concat([openPnl, pd.read_csv(csvFile)])
+
+        closeCsvFiles = []
+        for file in os.listdir(os.path.join(os.getcwd(), self.fileDir["backtestResultsClosePnl"])):
+            if file.endswith(".csv"):
+                closeCsvFiles.append(os.path.join(
+                    os.getcwd(), os.path.join(self.fileDir["backtestResultsClosePnl"], file)))
+
+        for csvFile in closeCsvFiles:
+            closedPnl = pd.concat([closedPnl, pd.read_csv(csvFile)])
 
         openPnl["EntryTime"] = pd.to_datetime(openPnl["EntryTime"])
         if "Unnamed: 0" in openPnl.columns:
@@ -241,23 +258,17 @@ class baseAlgoLogic:
         openPnl.sort_values(by=["EntryTime"], inplace=True)
         openPnl.reset_index(inplace=True, drop=True)
 
-        openPnl.to_csv(
-            f"{self.fileDir['backtestResultsStrategyUid']}openPnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv", index=False)
-        # logging.info("OpenPNL.csv saved.")
-        self.strategyLogger.info("OpenPNL.csv saved.")
-
-        # Read and preprocess Closed trades data
-        closeCsvFiles = [file for file in os.listdir(
-            self.fileDir["backtestResultsClosePnl"]) if file.endswith(".csv")]
-        closedPnl = pd.concat(
-            [pd.read_csv(os.path.join(self.fileDir["backtestResultsClosePnl"], file)) for file in closeCsvFiles])
-
         closedPnl["Key"] = pd.to_datetime(closedPnl["Key"])
         closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
         if "Unnamed: 0" in closedPnl.columns:
             closedPnl.drop(columns=["Unnamed: 0"], inplace=True)
         closedPnl.sort_values(by=["Key"], inplace=True)
         closedPnl.reset_index(inplace=True, drop=True)
+
+        openPnl.to_csv(
+            f"{self.fileDir['backtestResultsStrategyUid']}openPnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv", index=False)
+        # logging.info("OpenPNL.csv saved.")
+        self.strategyLogger.info("OpenPNL.csv saved.")
 
         closedPnl.to_csv(
             f"{self.fileDir['backtestResultsStrategyUid']}closePnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv", index=False)
@@ -514,7 +525,12 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
         self.fileDir = fileDir
 
         self.strategyLogger = setup_logger(
-            "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
+            "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log")
+        self.strategyLogger.propagate = False
+
+    def init_logger(self):
+        self.strategyLogger = setup_logger(
+            f"{self.stockName}_{self.humanTime.date()}_logger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
         self.strategyLogger.propagate = False
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):

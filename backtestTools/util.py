@@ -1,10 +1,11 @@
+import os
 import logging
 import pandas as pd
 from datetime import datetime, time, timedelta
-from backtestTools.histData import getEquityHistData, getFnoHistData
+from backtestTools.histData import getEquityBacktestData, getFnoBacktestData, getEquityHistData, getFnoHistData
 
 
-def setup_logger(name, log_file, level=logging.INFO):
+def setup_logger(name, log_file, level=logging.INFO, formatter=logging.Formatter('%(message)s')):
     """
     Set up a logger with a specified name, log file, and logging level.
 
@@ -24,7 +25,7 @@ def setup_logger(name, log_file, level=logging.INFO):
         logger.info('This is an information message.')
     ```
     """
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
     handler = logging.FileHandler(log_file)
     handler.setFormatter(formatter)
 
@@ -96,15 +97,24 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
 
     '''
     # Initialize daily report DataFrame
+    closedPnl["Key"] = pd.to_datetime(closedPnl["Key"])
+    closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
+
     startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
     endDatetime = (closedPnl["Key"].iloc[-1].to_pydatetime()) + timeFrame
 
-    # startDatetime = startDatetime
-    # endDate = endDatetime.date() + timedelta(days=10)
-    # endDatetime = endDatetime + timeFrame
-
     dailyReport = pd.DataFrame(
         columns=["Date",  "OpenTrades", "CapitalInvested", "CumulativePnl", "mtmPnl"])
+
+    symbolDF = {}
+    if fno:
+        for symbol in closedPnl["Symbol"].unique():
+            symbolDF[symbol] = getFnoBacktestData(
+                symbol, startDatetime, endDatetime, "1Min")
+    else:
+        for symbol in closedPnl["Symbol"].unique():
+            symbolDF[symbol] = getEquityBacktestData(
+                symbol, startDatetime, endDatetime, "1Min")
 
     lastCumulativePnl = 0
     lastPnlForMtmCal = 0
@@ -126,15 +136,11 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
             continue
 
         # Calculate pnl for closed trades
-        # closedTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
-        #     closedPnl["ExitTime"].dt.date < nextDate)]
         closedTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
             closedPnl["ExitTime"] < nextDatetime)]
         cumulativePnl += closedTrades["Pnl"].sum()
 
         # Calculate capital invested for open trades
-        # openTrades = closedPnl[(closedPnl["Key"].dt.date < nextDate) & (
-        #     closedPnl["ExitTime"].dt.date >= nextDate)]
         openTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
             closedPnl["ExitTime"] >= nextDatetime)]
         capitalInvested = (openTrades['EntryPrice']
@@ -143,16 +149,17 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         # Perform mark-to-market calculation if required
         if mtm:
             for symbol in openTrades["Symbol"].unique():
-                # currentDatetime = datetime.combine(
-                #     currentDatetime, time(15, 29, 0))
                 try:
                     if fno == True:
-                        currentData = getFnoHistData(
-                            symbol, currentDatetime.timestamp())
+                        # currentData = getFnoHistData(
+                        #     symbol, currentDatetime.timestamp())
+                        currentData = symbolDF[symbol].loc[currentDatetime.timestamp(
+                        )]
                     else:
-                        currentData = getEquityHistData(
-                            symbol, currentDatetime.timestamp())
-                        # stockSymbol, currentDatetime.timestamp())
+                        # currentData = getEquityHistData(
+                        #     symbol, currentDatetime.timestamp())
+                        currentData = symbolDF[symbol].loc[currentDatetime.timestamp(
+                        )]
                     if currentData is None:
                         cumulativePnl = lastCumulativePnl
                         break
