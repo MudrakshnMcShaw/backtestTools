@@ -1,9 +1,8 @@
-import logging
 import multiprocessing as mp
 from datetime import datetime, timedelta, time
 from backtestTools.expiry import getExpiryData
 from backtestTools.algoLogic import optIntraDayAlgoLogic
-from backtestTools.histData import connectToMongo, getFnoHistData, getFnoBacktestData
+from backtestTools.histData import getFnoBacktestData
 
 
 # Define a class algoLogic that inherits from optIntraDayAlgoLogic
@@ -23,7 +22,7 @@ class algoLogic(optIntraDayAlgoLogic):
                 return
         except Exception as e:
             # Log an exception if data retrieval fails
-            logging.info(
+            self.strategyLogger.info(
                 f"Data not found for {baseSym} in range {startDate} to {endDate}")
             raise Exception(e)
 
@@ -56,20 +55,20 @@ class algoLogic(optIntraDayAlgoLogic):
             lastIndexTimeData.pop(0)
             lastIndexTimeData.append(timeData-60)
 
-            # Add logging and comments
+            # Add self.strategyLogger and comments
             if lastIndexTimeData[1] in df.index:
-                logging.info(
+                self.strategyLogger.info(
                     f"Datetime: {self.humanTime}\tClose: {df.at[lastIndexTimeData[1],'c']}")
 
             # Update current price for open positions
             if not self.openPnl.empty:
                 for index, row in self.openPnl.iterrows():
                     try:
-                        data = getFnoHistData(
+                        data = self.fetchAndCacheFnoHistData(
                             row['Symbol'], lastIndexTimeData[1])
                         self.openPnl.at[index, 'CurrentPrice'] = data['c']
                     except Exception as e:
-                        logging.info(e)
+                        self.strategyLogger.info(e)
 
             # Calculate and update PnL
             self.pnlCalculator()
@@ -94,9 +93,10 @@ class algoLogic(optIntraDayAlgoLogic):
                         startEpoch, baseSym, df.at[lastIndexTimeData[1], "c"])
 
                     try:
-                        data = getFnoHistData(callSym, lastIndexTimeData[1])
+                        data = self.fetchAndCacheFnoHistData(
+                            callSym, lastIndexTimeData[1])
                     except Exception as e:
-                        logging.info(e)
+                        self.strategyLogger.info(e)
 
                     self.entryOrder(data['c'], callSym, lotSize, "SELL")
                     callT = True
@@ -106,9 +106,10 @@ class algoLogic(optIntraDayAlgoLogic):
                         startEpoch, baseSym, df.at[lastIndexTimeData[1], "c"])
 
                     try:
-                        data = getFnoHistData(putSym, lastIndexTimeData[1])
+                        data = self.fetchAndCacheFnoHistData(
+                            putSym, lastIndexTimeData[1])
                     except Exception as e:
-                        logging.info(e)
+                        self.strategyLogger.info(e)
 
                     self.entryOrder(data['c'], putSym, lotSize, "SELL")
                     putT = True

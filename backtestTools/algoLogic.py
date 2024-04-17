@@ -2,6 +2,7 @@ import os
 import logging
 import pandas as pd
 from datetime import datetime
+from backtestTools.histData import getFnoHistData, getFnoBacktestData
 from backtestTools.util import setup_logger
 from backtestTools.expiry import getExpiryData
 
@@ -288,6 +289,10 @@ class optAlgoLogic(baseAlgoLogic):
         Inherits all attributes and functions from the baseAlgoLogic class.
     '''
 
+    def __init__(self, devName, strategyName, version):
+        super().__init__(devName, strategyName, version)
+        self.symbolDataCache = {}
+
     def getCallSym(self, date, baseSym, indexPrice, otmFactor=0):
         '''
         Creates the call symbol based on provided parameters.
@@ -356,11 +361,6 @@ class optAlgoLogic(baseAlgoLogic):
         else:
             symWithExpiry = baseSym + expiryData["CurrentExpiry"]
 
-        # if expiryData["CurrentExpiry"] == nextExpiryData["CurrentExpiry"]:
-        #     symWithExpiry = baseSym + expiryData["CurrentExpiry"]
-        # else:
-        #     symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
-
         remainder = indexPrice % expiryData["StrikeDist"]
         atm = indexPrice - remainder if remainder <= (expiryData["StrikeDist"]/2) else (
             indexPrice - remainder + expiryData["StrikeDist"])
@@ -369,6 +369,44 @@ class optAlgoLogic(baseAlgoLogic):
             str(int(atm) - (otmFactor * int(expiryData["StrikeDist"]))) + 'PE'
 
         return putSym
+
+    def fetchAndCacheFnoHistData(self, symbol, timestamp, maxCacheSize=50):
+        '''
+        Fetches and caches historical data for a given F&O symbol and timestamp.
+
+        Parameters:
+            symbol (str): The F&O symbol for which data needs to be fetched.
+
+            timestamp (float): The timestamp for the data request.
+
+            maxCacheSize (int, optional): Maximum size of the cache. Default is 50.
+
+        Returns:
+            DataFrame: Historical data for the specified F&O symbol and timestamp.
+
+        '''
+        if len(self.symbolDataCache) > maxCacheSize:
+            for symbol in self.symbolDataCache.keys():
+                idx = next(i for i, char in enumerate(
+                    symbol) if char.isdigit())
+                optionExpiry = datetime.strptime(
+                    symbol[idx: idx + 7], "%d%b%y").timestamp()
+
+                if self.timeData > optionExpiry:
+                    del self.symbolDataCache[symbol]
+
+        if symbol in self.symbolDataCache.keys():
+            return self.symbolDataCache[symbol].loc[timestamp]
+
+        else:
+            idx = next(i for i, char in enumerate(symbol) if char.isdigit())
+            optionExpiry = datetime.strptime(
+                symbol[idx: idx + 7], "%d%b%y").timestamp()
+
+            self.symbolDataCache[symbol] = getFnoBacktestData(
+                symbol, timestamp, optionExpiry, "1Min")
+
+            return self.symbolDataCache[symbol].loc[timestamp]
 
 
 class optIntraDayAlgoLogic(optAlgoLogic):

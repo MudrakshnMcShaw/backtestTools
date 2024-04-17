@@ -11,6 +11,7 @@
   * [optAlgoLogic](#algoLogic.optAlgoLogic)
     * [getCallSym](#algoLogic.optAlgoLogic.getCallSym)
     * [getPutSym](#algoLogic.optAlgoLogic.getPutSym)
+    * [fetchAndCacheFnoHistData](#algoLogic.optAlgoLogic.fetchAndCacheFnoHistData)
   * [optIntraDayAlgoLogic](#algoLogic.optIntraDayAlgoLogic)
   * [optOverNightAlgoLogic](#algoLogic.optOverNightAlgoLogic)
   * [equityOverNightAlgoLogic](#algoLogic.equityOverNightAlgoLogic)
@@ -244,6 +245,29 @@ Creates the put symbol based on provided parameters.
 **Returns**:
 
 - `putSym` _string_ - Put symbol generated based on the parameters.
+
+<a id="algoLogic.optAlgoLogic.fetchAndCacheFnoHistData"></a>
+
+#### fetchAndCacheFnoHistData
+
+```python
+def fetchAndCacheFnoHistData(symbol, timestamp, maxCacheSize=50)
+```
+
+Fetches and caches historical data for a given F&O symbol and timestamp.
+
+**Arguments**:
+
+- `symbol` _str_ - The F&O symbol for which data needs to be fetched.
+  
+- `timestamp` _float_ - The timestamp for the data request.
+  
+- `maxCacheSize` _int, optional_ - Maximum size of the cache. Default is 50.
+  
+
+**Returns**:
+
+- `DataFrame` - Historical data for the specified F&O symbol and timestamp.
 
 <a id="algoLogic.optIntraDayAlgoLogic"></a>
 
@@ -481,7 +505,10 @@ Retrieves backtest data i.e. range of data for a given equity symbol, start and 
 #### setup\_logger
 
 ```python
-def setup_logger(name, log_file, level=logging.INFO)
+def setup_logger(name,
+                 log_file,
+                 level=logging.INFO,
+                 formatter=logging.Formatter('%(message)s'))
 ```
 
 Set up a logger with a specified name, log file, and logging level.

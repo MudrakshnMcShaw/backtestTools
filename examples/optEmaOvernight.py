@@ -1,10 +1,9 @@
-import logging
 import numpy as np
 import talib as ta
 from backtestTools.expiry import getExpiryData
 from datetime import datetime, time
 from backtestTools.algoLogic import optOverNightAlgoLogic
-from backtestTools.histData import getFnoHistData, getFnoBacktestData
+from backtestTools.histData import getFnoBacktestData
 
 
 # Define a class algoLogic that inherits from optOverNightAlgoLogic
@@ -48,7 +47,7 @@ class algoLogic(optOverNightAlgoLogic):
             df = getFnoBacktestData(indexSym, startEpoch, endEpoch, "1Min")
         except Exception as e:
             # Log an exception if data retrieval fails
-            logging.info(
+            self.strategyLogger.info(
                 f"Data not found for {baseSym} in range {startDate} to {endDate}")
             raise Exception(e)
 
@@ -62,6 +61,9 @@ class algoLogic(optOverNightAlgoLogic):
         # Determine crossover signals
         df["crossOver"] = np.where((df["ema10"] > df["ema20"]) & (df["ema10"].shift(1) <= df["ema20"].shift(
             1)), 1, (np.where((df["ema10"] < df["ema20"]) & (df["ema10"].shift(1) >= df["ema20"].shift(1)), -1, 0)))
+
+        # Drop rows with missing values
+        df.dropna(inplace=True)
 
         df.to_csv(
             f"{self.fileDir['backtestResultsCandleData']}{indexName}_1Min.csv")
@@ -84,18 +86,18 @@ class algoLogic(optOverNightAlgoLogic):
 
             # Log relevant information
             if lastIndexTimeData[1] in df.index:
-                logging.info(
+                self.strategyLogger.info(
                     f"Datetime: {self.humanTime}\tClose: {df.at[lastIndexTimeData[1],'c']}\tEMA10: {df.at[lastIndexTimeData[1],'ema10']}\tEMA20: {df.at[lastIndexTimeData[1],'ema20']}")
 
             # Update current price for open positions
             if not self.openPnl.empty:
                 for index, row in self.openPnl.iterrows():
                     try:
-                        data = getFnoHistData(
+                        data = self.fetchAndCacheFnoHistData(
                             row['Symbol'], lastIndexTimeData[1])
                         self.openPnl.at[index, 'CurrentPrice'] = data['c']
                     except Exception as e:
-                        logging.info(e)
+                        self.strategyLogger.info(e)
 
             # Calculate and update PnL
             self.pnlCalculator()
@@ -135,10 +137,10 @@ class algoLogic(optOverNightAlgoLogic):
                             self.timeData, baseSym)["LotSize"])
 
                         try:
-                            data = getFnoHistData(
+                            data = self.fetchAndCacheFnoHistData(
                                 putSym, lastIndexTimeData[1])
                         except Exception as e:
-                            logging.info(e)
+                            self.strategyLogger.info(e)
 
                         self.entryOrder(data['c'], putSym, lotSize, "SELL",
                                         {"Target": (0.5 * data['c']), "Stoploss": (1.3 * data['c']), "Expiry": expiryEpoch})
@@ -152,10 +154,10 @@ class algoLogic(optOverNightAlgoLogic):
                             self.timeData, baseSym)["LotSize"])
 
                         try:
-                            data = getFnoHistData(
+                            data = self.fetchAndCacheFnoHistData(
                                 callSym, lastIndexTimeData[1])
                         except Exception as e:
-                            logging.info(e)
+                            self.strategyLogger.info(e)
 
                         self.entryOrder(data['c'], callSym, lotSize, "SELL",
                                         {"Target": (0.5 * data['c']), "Stoploss": (1.3 * data['c']), "Expiry": expiryEpoch})

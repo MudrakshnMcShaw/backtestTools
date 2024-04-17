@@ -1,11 +1,10 @@
-import logging
 import numpy as np
 import talib as ta
 from backtestTools.expiry import getExpiryData
 from datetime import datetime, time, timedelta
 from backtestTools.algoLogic import optOverNightAlgoLogic
 from backtestTools.util import calculateDailyReport, limitCapital, generateReportFile
-from backtestTools.histData import getFnoHistData, getFnoBacktestData
+from backtestTools.histData import getFnoBacktestData
 # sys.path.insert(1, '/root/backtestTools')
 
 
@@ -52,7 +51,7 @@ class algoLogic(optOverNightAlgoLogic):
                 indexSym, startEpoch-432000, endEpoch, "5Min")
         except Exception as e:
             # Log an exception if data retrieval fails
-            logging.info(
+            self.strategyLogger.info(
                 f"Data not found for {baseSym} in range {startDate} to {endDate}")
             raise Exception(e)
 
@@ -115,18 +114,18 @@ class algoLogic(optOverNightAlgoLogic):
 
             # Log relevant information
             if lastIndexTimeData[1] in df.index:
-                logging.info(
+                self.strategyLogger.info(
                     f"Datetime: {self.humanTime}\tClose: {df.at[lastIndexTimeData[1],'c']}")
 
             # Update current price for open positions
             if not self.openPnl.empty:
                 for index, row in self.openPnl.iterrows():
                     try:
-                        data = getFnoHistData(
+                        data = self.fetchAndCacheFnoHistData(
                             row['Symbol'], lastIndexTimeData[1])
                         self.openPnl.at[index, 'CurrentPrice'] = data['c']
                     except Exception as e:
-                        logging.info(e)
+                        self.strategyLogger.info(e)
 
             # Calculate and update PnL
             self.pnlCalculator()
@@ -176,10 +175,10 @@ class algoLogic(optOverNightAlgoLogic):
                             self.timeData, baseSym)["LotSize"])
 
                         try:
-                            data = getFnoHistData(
+                            data = self.fetchAndCacheFnoHistData(
                                 callSym, last5MinIndexTimeData[1])
                         except Exception as e:
-                            logging.info(e)
+                            self.strategyLogger.info(e)
 
                         target = 0.5 * data['c']
                         stoploss = 1.3 * data['c']
@@ -200,10 +199,10 @@ class algoLogic(optOverNightAlgoLogic):
                             self.timeData, baseSym)["LotSize"])
 
                         try:
-                            data = getFnoHistData(
+                            data = self.fetchAndCacheFnoHistData(
                                 putSym, last5MinIndexTimeData[1])
                         except Exception as e:
-                            logging.info(e)
+                            self.strategyLogger.info(e)
 
                         target = 0.5 * data['c']
                         stoploss = 1.3 * data['c']
@@ -222,14 +221,16 @@ class algoLogic(optOverNightAlgoLogic):
 
 
 if __name__ == "__main__":
+    startTime = datetime.now()
+
     # Define Strategy Nomenclature
     devName = "NA"
     strategyName = "rdx"
     version = "v1"
 
     # Define Start date and End date
-    startDate = datetime(2021, 1, 1, 9, 15)
-    endDate = datetime(2021, 1, 5, 15, 30)
+    startDate = datetime(2023, 1, 1, 9, 15)
+    endDate = datetime(2023, 1, 31, 15, 30)
 
     # Create algoLogic object
     algo = algoLogic(devName, strategyName, version)
@@ -239,10 +240,7 @@ if __name__ == "__main__":
     indexName = 'NIFTY 50'
 
     # Execute the algorithm
-    print("test")
     closedPnl, fileDir = algo.run(startDate, endDate, baseSym, indexName)
-    print(closedPnl)
-    print(fileDir)
 
     print("Calculating Daily Pnl")
     dr = calculateDailyReport(closedPnl, fileDir,
@@ -251,4 +249,10 @@ if __name__ == "__main__":
     limitCapital(closedPnl, fileDir, maxCapitalAmount=1000)
 
     generateReportFile(dr, fileDir)
-    print("\t[Completed]")
+
+    endTime = datetime.now()
+    print(f"Done. Ended in {endTime-startTime}")
+
+    # Backtest time = 09:50
+    # Backtest time = 07:27
+    # Backtest time = 07:27
