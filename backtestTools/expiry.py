@@ -19,11 +19,13 @@ def getExpiryData(date, sym):
     try:
         if isinstance(date, datetime):
             getDatetime = date
+        elif isinstance(date, int):
+            getDatetime = datetime.fromtimestamp(float(date))
         elif isinstance(date, float):
             getDatetime = datetime.fromtimestamp(date)
         else:
             raise Exception(
-                "date is not a timestamp(float) or datetime object")
+                "date is not a timestamp(float or int) or datetime object")
 
         expiryDict = None
 

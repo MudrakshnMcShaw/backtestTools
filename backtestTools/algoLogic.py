@@ -2,7 +2,7 @@ import os
 import logging
 import pandas as pd
 from datetime import datetime
-from backtestTools.histData import getFnoHistData, getFnoBacktestData
+from backtestTools.histData import getFnoBacktestData
 from backtestTools.util import setup_logger
 from backtestTools.expiry import getExpiryData
 
@@ -311,11 +311,13 @@ class optAlgoLogic(baseAlgoLogic):
         '''
         if isinstance(date, datetime):
             dateEpoch = date.timestamp()
+        elif isinstance(date, int):
+            dateEpoch = float(date)
         elif isinstance(date, float):
             dateEpoch = date
         else:
             raise Exception(
-                "date is not a timestamp(float) or datetime object")
+                "date is not a timestamp(float or int) or datetime object")
 
         expiryData = getExpiryData(dateEpoch, baseSym)
         nextExpiryData = getExpiryData(dateEpoch+86400, baseSym)
@@ -350,6 +352,16 @@ class optAlgoLogic(baseAlgoLogic):
         Returns:
             putSym (string): Put symbol generated based on the parameters.
         '''
+        if isinstance(date, datetime):
+            dateEpoch = date.timestamp()
+        elif isinstance(date, int):
+            dateEpoch = float(date)
+        elif isinstance(date, float):
+            dateEpoch = date
+        else:
+            raise Exception(
+                "date is not a timestamp(float or int) or datetime object")
+
         expiryData = getExpiryData(date, baseSym)
         nextExpiryData = getExpiryData(date+86400, baseSym)
 
