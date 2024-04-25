@@ -504,9 +504,9 @@ class optAlgoLogic(baseAlgoLogic):
 
         else:
             idx = next(i for i, char in enumerate(symbol) if char.isdigit())
-            optionExpiry = datetime.strptime(
-                symbol[idx : idx + 7], "%d%b%y"
-            ).timestamp()
+            optionExpiry = (
+                datetime.strptime(symbol[idx : idx + 7], "%d%b%y").timestamp() + 55800
+            )
 
             self.symbolDataCache[symbol] = getFnoBacktestData(
                 symbol, timestamp, optionExpiry, "1Min"
