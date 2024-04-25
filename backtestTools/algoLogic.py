@@ -1,8 +1,7 @@
 import os
-import logging
 import pandas as pd
 from datetime import datetime
-from backtestTools.histData import getFnoBacktestData
+from backtestTools.histData import connectToMongo, getFnoBacktestData
 from backtestTools.util import setup_logger
 from backtestTools.expiry import getExpiryData
 
@@ -447,8 +446,8 @@ class optAlgoLogic(baseAlgoLogic):
         else:
             raise Exception("date is not a timestamp(float or int) or datetime object")
 
-        expiryData = getExpiryData(date, baseSym)
-        nextExpiryData = getExpiryData(date + 86400, baseSym)
+        expiryData = getExpiryData(dateEpoch, baseSym)
+        nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
 
         expiry = expiryData["CurrentExpiry"]
         expiryDatetime = datetime.strptime(expiry, "%d%b%y")
@@ -513,6 +512,63 @@ class optAlgoLogic(baseAlgoLogic):
             )
 
             return self.symbolDataCache[symbol].loc[timestamp]
+
+    def fetchAndCacheExpiryData(self, date, sym):
+        """
+        Fetches and caches expiry data for a given date and symbol from MongoDB collections.
+        The fetched data is cached in the `expiryDataCache` attribute of the class instance.
+
+        Parameters:
+            date (datetime or float): The date for which expiry data is requested.
+                It can be either a datetime object or a timestamp in float format.
+
+            sym (string): The base symbol for which expiry data is requested.
+
+        Returns:
+            dictionary: A dictionary containing expiry data if found, otherwise None.
+        """
+        try:
+            if isinstance(date, datetime):
+                getDatetime = date
+            elif isinstance(date, float):
+                getDatetime = datetime.fromtimestamp(date)
+            else:
+                raise Exception("date is not a timestamp(float) or datetime object")
+
+            getDatetime = getDatetime.replace(hour=15, minute=30)
+
+            if sym in self.expiryDataCache.keys():
+                index = self.expiryDataCache[sym].index.searchsorted(getDatetime) + 1
+                if (
+                    index < len(self.expiryDataCache[sym])
+                    and self.expiryDataCache[sym].index[index] == getDatetime
+                ):
+                    expiryDict = self.expiryDataCache[sym].iloc[index].to_dict()
+                elif index > 0:
+                    expiryDict = self.expiryDataCache[sym].iloc[index - 1].to_dict()
+                return expiryDict
+
+            else:
+                conn = connectToMongo()
+
+                db = conn["FNO_Expiry"]
+                collection = db["Data"]
+
+                rec = collection.find({"Sym": sym})
+                rec = list(rec)
+
+                if rec:
+                    df = pd.DataFrame(rec)
+                    df["Date"] = pd.to_datetime(df["Date"])
+                    df["Date"] = df["Date"] + pd.Timedelta(hours=15, minutes=30)
+                    df.set_index("Date", inplace=True)
+                    df.sort_index(inplace=True, ascending=True)
+
+                    self.expiryDataCache[sym] = df
+
+                    return self.fetchAndCacheExpiryData(date, sym)
+        except Exception as e:
+            raise Exception(e)
 
 
 class optIntraDayAlgoLogic(optAlgoLogic):

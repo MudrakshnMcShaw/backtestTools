@@ -4,7 +4,7 @@ from backtestTools.histData import connectToMongo
 
 
 def getExpiryData(date, sym):
-    '''
+    """
     Retrieves expiry data for a given date and symbol from MongoDB collections.
 
     Parameters:
@@ -14,7 +14,7 @@ def getExpiryData(date, sym):
 
     Returns:
         dictionary: A dictionary containing expiry data if found, otherwise None.
-    '''
+    """
 
     try:
         if isinstance(date, datetime):
@@ -24,17 +24,16 @@ def getExpiryData(date, sym):
         elif isinstance(date, float):
             getDatetime = datetime.fromtimestamp(date)
         else:
-            raise Exception(
-                "date is not a timestamp(float or int) or datetime object")
+            raise Exception("date is not a timestamp(float or int) or datetime object")
 
         expiryDict = None
 
         conn = connectToMongo()
 
         db = conn["FNO_Expiry"]
-        collection = db[f"Data"]
+        collection = db["Data"]
 
-        rec = collection.find({'Sym': sym})
+        rec = collection.find({"Sym": sym})
         rec = list(rec)
 
         if rec:

@@ -12,6 +12,7 @@
     * [getCallSym](#algoLogic.optAlgoLogic.getCallSym)
     * [getPutSym](#algoLogic.optAlgoLogic.getPutSym)
     * [fetchAndCacheFnoHistData](#algoLogic.optAlgoLogic.fetchAndCacheFnoHistData)
+    * [fetchAndCacheExpiryData](#algoLogic.optAlgoLogic.fetchAndCacheExpiryData)
   * [optIntraDayAlgoLogic](#algoLogic.optIntraDayAlgoLogic)
   * [optOverNightAlgoLogic](#algoLogic.optOverNightAlgoLogic)
   * [equityOverNightAlgoLogic](#algoLogic.equityOverNightAlgoLogic)
@@ -269,6 +270,29 @@ Fetches and caches historical data for a given F&O symbol and timestamp.
 
 - `DataFrame` - Historical data for the specified F&O symbol and timestamp.
 
+<a id="algoLogic.optAlgoLogic.fetchAndCacheExpiryData"></a>
+
+#### fetchAndCacheExpiryData
+
+```python
+def fetchAndCacheExpiryData(date, sym)
+```
+
+Fetches and caches expiry data for a given date and symbol from MongoDB collections.
+The fetched data is cached in the `expiryDataCache` attribute of the class instance.
+
+**Arguments**:
+
+- `date` _datetime or float_ - The date for which expiry data is requested.
+  It can be either a datetime object or a timestamp in float format.
+  
+- `sym` _string_ - The base symbol for which expiry data is requested.
+  
+
+**Returns**:
+
+- `dictionary` - A dictionary containing expiry data if found, otherwise None.
+
 <a id="algoLogic.optIntraDayAlgoLogic"></a>
 
 ## optIntraDayAlgoLogic Objects
@@ -508,7 +532,7 @@ Retrieves backtest data i.e. range of data for a given equity symbol, start and 
 def setup_logger(name,
                  log_file,
                  level=logging.INFO,
-                 formatter=logging.Formatter('%(message)s'))
+                 formatter=logging.Formatter("%(message)s"))
 ```
 
 Set up a logger with a specified name, log file, and logging level.
