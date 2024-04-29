@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 from pymongo import MongoClient
@@ -25,7 +24,8 @@ def connectToMongo():
 
     # Connect to MongoDB Database
     try:
-        conn = MongoClient(host=host, port=port, username=username, password=password)
+        conn = MongoClient(host=host, port=port,
+                           username=username, password=password)
     except Exception as e:
         raise Exception(e)
     return conn
@@ -49,15 +49,15 @@ def getFnoHistData(symbol, timestamp):
 
         db = conn["OHLC_MINUTE_1_New"]
         collection = db.Data
-        rec = collection.find_one({"$and": [{"sym": symbol}, {"ti": timestamp}]})
+        rec = collection.find_one(
+            {"$and": [{"sym": symbol}, {"ti": timestamp}]})
 
         if rec:
             return rec
         else:
             for i in range(15):
                 rec = collection.find_one(
-                    {"$and": [{"sym": symbol}, {"ti": timestamp + (i * 60)}]}
-                )
+                    {"$and": [{"sym": symbol}, {"ti": timestamp + (i * 60)}]})
                 if rec:
                     return rec
 
@@ -93,8 +93,7 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
             endTimestamp = endDateTime
         else:
             raise Exception(
-                "startDateTime or endDateTime is not a timestamp(float or int) or datetime object"
-            )
+                "startDateTime or endDateTime is not a timestamp(float or int) or datetime object")
 
         conn = connectToMongo()
 
@@ -104,14 +103,8 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
             db = conn["OHLC_MINUTE_1_New"]
         collection = db.Data
 
-        rec = collection.find(
-            {
-                "$and": [
-                    {"sym": symbol},
-                    {"ti": {"$gte": startTimestamp, "$lte": endTimestamp}},
-                ]
-            }
-        )
+        rec = collection.find({"$and": [{"sym": symbol}, {
+                              "ti": {"$gte": startTimestamp, "$lte": endTimestamp}},]})
         rec = list(rec)
 
         if rec:
@@ -125,18 +118,23 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
             df.index = df.index + timedelta(hours=5, minutes=30)
 
             if interval[-1:] == "D":
-                df_resample = df.resample(interval).agg(
-                    {"o": "first", "h": "max", "l": "min", "c": "last"}
-                )
+                df_resample = df.resample(interval).agg({
+                    "o": "first",
+                    "h": "max",
+                    "l": "min",
+                    "c": "last"
+                })
             else:
                 df = df.between_time("09:15:00", "15:29:00")
-                df_resample = df.resample(
-                    interval, offset=pd.Timedelta(minutes=15)
-                ).agg({"o": "first", "h": "max", "l": "min", "c": "last"})
+                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg(
+                    {"o": "first",
+                     "h": "max",
+                     "l": "min",
+                     "c": "last"}
+                )
 
             df_resample.index = (
-                df_resample.index.values.astype(np.int64) // 10**9
-            ) - 19800
+                df_resample.index.values.astype(np.int64) // 10**9) - 19800
             df_resample.insert(0, "ti", df_resample.index)
 
             df_resample.dropna(inplace=True)
@@ -168,20 +166,19 @@ def getEquityHistData(symbol, timestamp):
 
         db = conn["STOCK_MINUTE_1"]
         collection = db.Data
-        rec = collection.find_one({"$and": [{"sym": symbol}, {"ti": timestamp}]})
+        rec = collection.find_one(
+            {"$and": [{"sym": symbol}, {"ti": timestamp}]})
 
         if rec:
             return rec
         else:
             for i in range(15):
                 rec = collection.find_one(
-                    {"$and": [{"sym": symbol}, {"ti": timestamp + (i * 60)}]}
-                )
+                    {"$and": [{"sym": symbol}, {"ti": timestamp + (i * 60)}]})
                 if rec:
                     return rec
             raise Exception(
-                f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp)}"
-            )
+                f"Data not found for {symbol} at {datetime.fromtimestamp(timestamp)}")
     except Exception as e:
         raise Exception(e)
 
@@ -225,14 +222,8 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
             db = conn["STOCK_MINUTE_1"]
         collection = db.Data
 
-        rec = collection.find(
-            {
-                "$and": [
-                    {"sym": symbol},
-                    {"ti": {"$gte": startTimestamp, "$lte": endTimestamp}},
-                ]
-            }
-        )
+        rec = collection.find({"$and": [{"sym": symbol}, {
+                              "ti": {"$gte": startTimestamp, "$lte": endTimestamp}},]})
         rec = list(rec)
 
         if rec:
@@ -247,19 +238,24 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
             df.index = df.index + timedelta(hours=5, minutes=30)
 
             if interval[-1:] == "D":
-                df_resample = df.resample(interval).agg(
-                    {"o": "first", "h": "max", "l": "min", "c": "last"}
-                )
+                df_resample = df.resample(interval).agg({
+                    "o": "first",
+                    "h": "max",
+                    "l": "min",
+                    "c": "last"
+                })
 
             else:
                 df = df.between_time("09:15:00", "15:29:00")
-                df_resample = df.resample(
-                    interval, offset=pd.Timedelta(minutes=15)
-                ).agg({"o": "first", "h": "max", "l": "min", "c": "last"})
+                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg(
+                    {"o": "first",
+                     "h": "max",
+                     "l": "min",
+                     "c": "last"}
+                )
 
-            df_resample.index = (
-                df_resample.index.values.astype(np.int64) // 10**9
-            ) - 19800
+            df_resample.index = (df_resample.index.values.astype(np.int64) //
+                                 10**9) - 19800
             df_resample.insert(0, "ti", df_resample.index)
 
             df_resample.dropna(inplace=True)

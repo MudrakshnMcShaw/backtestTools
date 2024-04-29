@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 from backtestTools.algoLogic import optOverNightAlgoLogic
 from backtestTools.util import calculateDailyReport, limitCapital, generateReportFile
 from backtestTools.histData import getFnoBacktestData
+
 # sys.path.insert(1, '/root/backtestTools')
 
 
@@ -15,7 +16,7 @@ class algoLogic(optOverNightAlgoLogic):
     def getCurrentExpiryEpoch(self, date, baseSym):
         # Fetch expiry data for current and next expiry
         expiryData = getExpiryData(date, baseSym)
-        nextExpiryData = getExpiryData(date+86400, baseSym)
+        nextExpiryData = getExpiryData(date + 86400, baseSym)
 
         # Select appropriate expiry based on the current date
         expiry = expiryData["CurrentExpiry"]
@@ -48,7 +49,7 @@ class algoLogic(optOverNightAlgoLogic):
             # Fetch historical data for backtesting
             df = getFnoBacktestData(indexSym, startEpoch, endEpoch, "1Min")
             df_5min = getFnoBacktestData(
-                indexSym, startEpoch-432000, endEpoch, "5Min")
+                indexSym, startEpoch - 432000, endEpoch, "5Min")
         except Exception as e:
             # Log an exception if data retrieval fails
             self.strategyLogger.info(
@@ -72,12 +73,13 @@ class algoLogic(optOverNightAlgoLogic):
         df_5min["rsiCross40"] = np.where(
             (df_5min["rsi"] < 40) & (df_5min["rsi"].shift(1) >= 40), 1, 0)
         df_5min["rsiCross50"] = np.where((df_5min["rsi"] >= 50) & (df_5min["rsi"].shift(
-            1) < 50), 1, np.where((df_5min["rsi"] <= 50) & (df_5min["rsi"].shift(1) > 50), 1, 0))
+            1) < 50), 1, np.where((df_5min["rsi"] <= 50) & (df_5min["rsi"].shift(1) > 50), 1, 0),)
 
         df.to_csv(
             f"{self.fileDir['backtestResultsCandleData']}{indexName}_1Min.csv")
         df_5min.to_csv(
-            f"{self.fileDir['backtestResultsCandleData']}{indexName}_5Min.csv")
+            f"{self.fileDir['backtestResultsCandleData']}{indexName}_5Min.csv"
+        )
 
         # Strategy Parameters
         callEntryAllow = True
@@ -90,10 +92,10 @@ class algoLogic(optOverNightAlgoLogic):
         # Loop through each timestamp in the DataFrame index
         for timeData in df.index:
             # Reset tradeCounter on new day
-            callTradeCounter = 0 if self.humanTime.date() != datetime.fromtimestamp(
-                timeData).date() else callTradeCounter
-            putTradeCounter = 0 if self.humanTime.date() != datetime.fromtimestamp(
-                timeData).date() else putTradeCounter
+            callTradeCounter = (0 if self.humanTime.date() != datetime.fromtimestamp(
+                timeData).date() else callTradeCounter)
+            putTradeCounter = (0 if self.humanTime.date() != datetime.fromtimestamp(
+                timeData).date() else putTradeCounter)
 
             self.timeData = float(timeData)
             self.humanTime = datetime.fromtimestamp(timeData)
@@ -122,8 +124,8 @@ class algoLogic(optOverNightAlgoLogic):
                 for index, row in self.openPnl.iterrows():
                     try:
                         data = self.fetchAndCacheFnoHistData(
-                            row['Symbol'], lastIndexTimeData[1])
-                        self.openPnl.at[index, 'CurrentPrice'] = data['c']
+                            row["Symbol"], lastIndexTimeData[1])
+                        self.openPnl.at[index, "CurrentPrice"] = data["c"]
                     except Exception as e:
                         self.strategyLogger.info(e)
 
@@ -131,11 +133,11 @@ class algoLogic(optOverNightAlgoLogic):
             self.pnlCalculator()
 
             # Check for exit conditions and execute exit orders
-            if (not self.openPnl.empty):
+            if not self.openPnl.empty:
                 for index, row in self.openPnl.iterrows():
 
                     symSide = row["Symbol"]
-                    symSide = symSide[len(symSide)-2:]
+                    symSide = symSide[len(symSide) - 2:]
 
                     if row["CurrentPrice"] <= row["Target"]:
                         exitType = "Target Hit"
@@ -146,7 +148,7 @@ class algoLogic(optOverNightAlgoLogic):
                     elif self.timeData >= row["Expiry"]:
                         exitType = "Time Up"
                         self.exitOrder(index, exitType)
-                    elif (last5MinIndexTimeData[1] in df_5min.index):
+                    elif last5MinIndexTimeData[1] in df_5min.index:
                         if (df_5min.at[last5MinIndexTimeData[1], "c"] >= row["BaseSymStoploss"]) & (symSide == "CE"):
                             exitType = "Underlying Asset Candle Stoploss Hit"
                             self.exitOrder(index, exitType)
@@ -160,13 +162,13 @@ class algoLogic(optOverNightAlgoLogic):
                         putTradeCounter += 1
 
             # Check for entry signals and execute orders
-            if (last5MinIndexTimeData[1] in df_5min.index):
+            if last5MinIndexTimeData[1] in df_5min.index:
                 if df_5min.at[last5MinIndexTimeData[1], "rsiCross50"] == 1:
                     callEntryAllow = True
                     putEntryAllow = True
 
                 if (callTradeCounter < 3) & (callEntryAllow):
-                    if (df_5min.at[last5MinIndexTimeData[1], "rsiCross40"] == 1):
+                    if df_5min.at[last5MinIndexTimeData[1], "rsiCross40"] == 1:
                         callSym = self.getCallSym(
                             self.timeData, baseSym, df.at[last5MinIndexTimeData[1], "c"])
                         expiryEpoch = self.getCurrentExpiryEpoch(
@@ -180,17 +182,21 @@ class algoLogic(optOverNightAlgoLogic):
                         except Exception as e:
                             self.strategyLogger.info(e)
 
-                        target = 0.5 * data['c']
-                        stoploss = 1.3 * data['c']
+                        target = 0.5 * data["c"]
+                        stoploss = 1.3 * data["c"]
                         baseSymStoploss = max(
-                            [df_5min.at[last5MinIndexTimeData[1], "h"], df_5min.at[timeData, "h"]])
+                            [df_5min.at[last5MinIndexTimeData[1], "h"], df_5min.at[timeData, "h"],])
 
-                        self.entryOrder(data['c'], callSym, lotSize, "SELL",
-                                        {"Target": target, "Stoploss": stoploss, "BaseSymStoploss": baseSymStoploss, "Expiry": expiryEpoch})
+                        self.entryOrder(data["c"], callSym, lotSize, "SELL", {
+                                        "Target": target,
+                                        "Stoploss": stoploss,
+                                        "BaseSymStoploss": baseSymStoploss,
+                                        "Expiry": expiryEpoch, }
+                                        )
                         callEntryAllow = False
 
                 if (putTradeCounter < 3) & (putEntryAllow):
-                    if (df_5min.at[last5MinIndexTimeData[1], "rsiCross60"] == 1):
+                    if df_5min.at[last5MinIndexTimeData[1], "rsiCross60"] == 1:
                         putSym = self.getPutSym(
                             self.timeData, baseSym, df.at[last5MinIndexTimeData[1], "c"])
                         expiryEpoch = self.getCurrentExpiryEpoch(
@@ -204,13 +210,17 @@ class algoLogic(optOverNightAlgoLogic):
                         except Exception as e:
                             self.strategyLogger.info(e)
 
-                        target = 0.5 * data['c']
-                        stoploss = 1.3 * data['c']
+                        target = 0.5 * data["c"]
+                        stoploss = 1.3 * data["c"]
                         baseSymStoploss = min(
-                            [df_5min.at[last5MinIndexTimeData[1], "l"], df_5min.at[timeData, "l"]])
+                            [df_5min.at[last5MinIndexTimeData[1], "l"], df_5min.at[timeData, "l"],])
 
-                        self.entryOrder(data['c'], putSym, lotSize, "SELL",
-                                        {"Target": target, "Stoploss": stoploss, "BaseSymStoploss": baseSymStoploss, "Expiry": expiryEpoch})
+                        self.entryOrder(data["c"], putSym, lotSize, "SELL", {
+                                        "Target": target,
+                                        "Stoploss": stoploss,
+                                        "BaseSymStoploss": baseSymStoploss,
+                                        "Expiry": expiryEpoch, },
+                                        )
                         putEntryAllow = False
 
         # Calculate final PnL and combine CSVs
@@ -236,15 +246,16 @@ if __name__ == "__main__":
     algo = algoLogic(devName, strategyName, version)
 
     # Define Index Name
-    baseSym = 'NIFTY'
-    indexName = 'NIFTY 50'
+    baseSym = "NIFTY"
+    indexName = "NIFTY 50"
 
     # Execute the algorithm
     closedPnl, fileDir = algo.run(startDate, endDate, baseSym, indexName)
 
     print("Calculating Daily Pnl")
-    dr = calculateDailyReport(closedPnl, fileDir,
-                              timeFrame=timedelta(minutes=1), mtm=True)
+    dr = calculateDailyReport(
+        closedPnl, fileDir, timeFrame=timedelta(minutes=1), mtm=True
+    )
 
     limitCapital(closedPnl, fileDir, maxCapitalAmount=1000)
 

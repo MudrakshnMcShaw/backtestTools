@@ -1,6 +1,5 @@
 import multiprocessing as mp
 from datetime import datetime, timedelta, time
-from backtestTools.expiry import getExpiryData
 from backtestTools.algoLogic import optIntraDayAlgoLogic
 from backtestTools.histData import getFnoBacktestData
 
@@ -31,7 +30,9 @@ class algoLogic(optIntraDayAlgoLogic):
             f"{self.fileDir['backtestResultsCandleData']}{indexName}_{startDate.date()}.csv")
 
         # Get lot size from expiry data
-        lotSize = int(getExpiryData(startEpoch, baseSym)["LotSize"])
+        # lotSize = int(getExpiryData(startEpoch, baseSym)["LotSize"])
+        lotSize = int(self.fetchAndCacheExpiryData(
+            startEpoch, baseSym)["LotSize"])
 
         # Strategy Parameters
         lastIndexTimeData = [0, 0]
@@ -48,12 +49,14 @@ class algoLogic(optIntraDayAlgoLogic):
             self.humanTime = datetime.fromtimestamp(timeData)
 
             # Skip time periods outside trading hours
-            if (self.humanTime.time() < time(9, 16)) | (self.humanTime.time() > time(15, 30)):
+            if (self.humanTime.time() < time(9, 16)) | (
+                self.humanTime.time() > time(15, 30)
+            ):
                 continue
 
             # Update lastIndexTimeData
             lastIndexTimeData.pop(0)
-            lastIndexTimeData.append(timeData-60)
+            lastIndexTimeData.append(timeData - 60)
 
             # Add self.strategyLogger and comments
             if lastIndexTimeData[1] in df.index:
@@ -65,8 +68,8 @@ class algoLogic(optIntraDayAlgoLogic):
                 for index, row in self.openPnl.iterrows():
                     try:
                         data = self.fetchAndCacheFnoHistData(
-                            row['Symbol'], lastIndexTimeData[1])
-                        self.openPnl.at[index, 'CurrentPrice'] = data['c']
+                            row["Symbol"], lastIndexTimeData[1])
+                        self.openPnl.at[index, "CurrentPrice"] = data["c"]
                     except Exception as e:
                         self.strategyLogger.info(e)
 
@@ -76,10 +79,10 @@ class algoLogic(optIntraDayAlgoLogic):
             # Exit positions based on conditions
             if not self.openPnl.empty:
                 for index, row in self.openPnl.iterrows():
-                    if row['CurrentPrice'] <= (row['EntryPrice'] - (0.5 * row['EntryPrice'])):
+                    if row["CurrentPrice"] <= (row["EntryPrice"] - (0.5 * row["EntryPrice"])):
                         exitType = "Put Target Hit"
                         self.exitOrder(index, exitType)
-                    elif row['CurrentPrice'] >= (row['EntryPrice'] + (0.3 * row['EntryPrice'])):
+                    elif row["CurrentPrice"] >= (row["EntryPrice"] + (0.3 * row["EntryPrice"])):
                         exitType = "Put Stoploss Hit"
                         self.exitOrder(index, exitType)
                     elif self.humanTime.time() >= time(15, 15):
@@ -98,7 +101,7 @@ class algoLogic(optIntraDayAlgoLogic):
                     except Exception as e:
                         self.strategyLogger.info(e)
 
-                    self.entryOrder(data['c'], callSym, lotSize, "SELL")
+                    self.entryOrder(data["c"], callSym, lotSize, "SELL")
                     callT = True
 
                 if (self.humanTime.time() >= putOrderTime) & (putT == False):
@@ -111,7 +114,7 @@ class algoLogic(optIntraDayAlgoLogic):
                     except Exception as e:
                         self.strategyLogger.info(e)
 
-                    self.entryOrder(data['c'], putSym, lotSize, "SELL")
+                    self.entryOrder(data["c"], putSym, lotSize, "SELL")
                     putT = True
 
         # Final PnL calculation and CSV export
@@ -120,6 +123,8 @@ class algoLogic(optIntraDayAlgoLogic):
 
 
 if __name__ == "__main__":
+    start = datetime.now()
+
     # Define Strategy Nomenclature
     devName = "NA"
     strategyName = "straddle"
@@ -127,14 +132,14 @@ if __name__ == "__main__":
 
     # Define Start date and End date
     startDate = datetime(2021, 1, 1, 9, 15)
-    endDate = datetime(2021, 1, 10, 15, 30)
+    endDate = datetime(2021, 1, 31, 15, 30)
 
     # Create algoLogic object
     algo = algoLogic(devName, strategyName, version)
 
     # Define Index Name
-    baseSym = 'NIFTY'
-    indexName = 'NIFTY 50'
+    baseSym = "NIFTY"
+    indexName = "NIFTY 50"
 
     # Configure number of processes to be created
     maxConcurrentProcesses = 2
@@ -144,10 +149,10 @@ if __name__ == "__main__":
     currentDate = startDate
     while currentDate <= endDate:
         # Define trading period for Current day
-        startTime = (datetime(currentDate.year, currentDate.month,
-                              currentDate.day, 9, 15, 0))
-        endTime = (datetime(currentDate.year, currentDate.month,
-                            currentDate.day, 15, 30, 0))
+        startTime = datetime(
+            currentDate.year, currentDate.month, currentDate.day, 9, 15, 0)
+        endTime = datetime(
+            currentDate.year, currentDate.month, currentDate.day, 15, 30, 0)
 
         p = mp.Process(target=algo.run, args=(
             startTime, endTime, baseSym, indexName))
@@ -159,3 +164,6 @@ if __name__ == "__main__":
                 p.join()
 
         currentDate += timedelta(days=1)
+
+    end = datetime.now()
+    print(f"Done. Ended in {end-start}.")

@@ -68,30 +68,10 @@ class baseAlgoLogic:
         self.realizedPnl = 0
         self.netPnl = 0
 
-        self.openPnl = pd.DataFrame(
-            columns=[
-                "EntryTime",
-                "Symbol",
-                "EntryPrice",
-                "CurrentPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-            ]
-        )
-        self.closedPnl = pd.DataFrame(
-            columns=[
-                "Key",
-                "ExitTime",
-                "Symbol",
-                "EntryPrice",
-                "ExitPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-                "ExitType",
-            ]
-        )
+        self.openPnl = pd.DataFrame(columns=[
+                                    "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl",])
+        self.closedPnl = pd.DataFrame(columns=[
+                                      "Key", "ExitTime", "Symbol", "EntryPrice", "ExitPrice", "Quantity", "PositionStatus", "Pnl", "ExitType",])
 
         self.fileDir = {
             "backtestResults": "BacktestResults/",
@@ -103,26 +83,22 @@ class baseAlgoLogic:
 
         folder_names = []
         for item in os.listdir(self.fileDir["backtestResultsStrategy"]):
-            item_path = os.path.join(self.fileDir["backtestResultsStrategy"], item)
+            item_path = os.path.join(self.fileDir["backtestResultsStrategy"],
+                                     item)
             if os.path.isdir(item_path):
                 folder_names.append(int(item))
 
         self.fileDirUid = (max(folder_names) + 1) if folder_names else 1
         self.fileDir["backtestResultsStrategyUid"] = (
-            f"{self.fileDir['backtestResultsStrategy']}{self.fileDirUid}/"
-        )
+            f"{self.fileDir['backtestResultsStrategy']}{self.fileDirUid}/")
         self.fileDir["backtestResultsOpenPnl"] = (
-            f"{self.fileDir['backtestResultsStrategyUid']}OpenPnlCsv/"
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}OpenPnlCsv/")
         self.fileDir["backtestResultsClosePnl"] = (
-            f"{self.fileDir['backtestResultsStrategyUid']}ClosePnlCsv/"
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}ClosePnlCsv/")
         self.fileDir["backtestResultsCandleData"] = (
-            f"{self.fileDir['backtestResultsStrategyUid']}CandleData/"
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}CandleData/")
         self.fileDir["backtestResultsStrategyLogs"] = (
-            f"{self.fileDir['backtestResultsStrategyUid']}StrategyLogs/"
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}StrategyLogs/")
         for dirs in self.fileDir.values():
             if not os.path.exists(dirs):
                 os.makedirs(dirs)
@@ -132,9 +108,7 @@ class baseAlgoLogic:
         # logging.info("----------New Start----------")
         # logging.propagate = False
         self.strategyLogger = setup_logger(
-            "strategyLogger",
-            f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log",
-        )
+            "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log",)
         self.strategyLogger.propagate = False
 
     def addColumnsToOpenPnlDf(self, columns):
@@ -148,9 +122,7 @@ class baseAlgoLogic:
         for col in columns:
             self.openPnl[col] = None
 
-    def entryOrder(
-        self, entryPrice, symbol, quantity, positionStatus, extraColDict=None
-    ):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         """
         Executes an entry order for a trade and adds it to the `openPnl` DataFrame.
 
@@ -210,13 +182,9 @@ class baseAlgoLogic:
         trade_to_close["Key"] = trade_to_close["EntryTime"]
         trade_to_close["ExitTime"] = self.humanTime
         trade_to_close["ExitPrice"] = (
-            trade_to_close["CurrentPrice"] if not exitPrice else exitPrice
-        )
-        trade_to_close["Pnl"] = (
-            (trade_to_close["ExitPrice"] - trade_to_close["EntryPrice"])
-            * trade_to_close["Quantity"]
-            * trade_to_close["PositionStatus"]
-        )
+            trade_to_close["CurrentPrice"] if not exitPrice else exitPrice)
+        trade_to_close["Pnl"] = ((trade_to_close["ExitPrice"] - trade_to_close["EntryPrice"])
+                                 * trade_to_close["Quantity"] * trade_to_close["PositionStatus"])
         trade_to_close["ExitType"] = exitType
 
         for col in self.openPnl.columns:
@@ -225,8 +193,7 @@ class baseAlgoLogic:
 
         # Append the closed trade to closedPnl DataFrame
         self.closedPnl = pd.concat(
-            [self.closedPnl, pd.DataFrame([trade_to_close])], ignore_index=True
-        )
+            [self.closedPnl, pd.DataFrame([trade_to_close])], ignore_index=True)
         self.closedPnl.reset_index(inplace=True, drop=True)
 
         # logging.info(
@@ -241,11 +208,8 @@ class baseAlgoLogic:
         """
         # Calculate unrealized PnL from open trades
         if not self.openPnl.empty:
-            self.openPnl["Pnl"] = (
-                (self.openPnl["CurrentPrice"] - self.openPnl["EntryPrice"])
-                * self.openPnl["Quantity"]
-                * self.openPnl["PositionStatus"]
-            )
+            self.openPnl["Pnl"] = ((self.openPnl["CurrentPrice"] - self.openPnl["EntryPrice"])
+                                   * self.openPnl["Quantity"] * self.openPnl["PositionStatus"])
             self.unrealizedPnl = self.openPnl["Pnl"].sum()
         else:
             self.unrealizedPnl = 0
@@ -253,11 +217,8 @@ class baseAlgoLogic:
         # Calculate realized PnL from closed trades
         if not self.closedPnl.empty:
             self.closedPnl.sort_values(by=["Key"], inplace=True)
-            self.closedPnl["Pnl"] = (
-                (self.closedPnl["ExitPrice"] - self.closedPnl["EntryPrice"])
-                * self.closedPnl["Quantity"]
-                * self.closedPnl["PositionStatus"]
-            )
+            self.closedPnl["Pnl"] = ((self.closedPnl["ExitPrice"] - self.closedPnl["EntryPrice"])
+                                     * self.closedPnl["Quantity"] * self.closedPnl["PositionStatus"])
             self.realizedPnl = self.closedPnl["Pnl"].sum()
         else:
             self.realizedPnl = 0
@@ -274,57 +235,25 @@ class baseAlgoLogic:
 
             closedPnl (DataFrame): Combined DataFrame of closed trades.
         """
-        openPnl = pd.DataFrame(
-            columns=[
-                "EntryTime",
-                "Symbol",
-                "EntryPrice",
-                "CurrentPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-            ]
-        )
-        closedPnl = pd.DataFrame(
-            columns=[
-                "Key",
-                "ExitTime",
-                "Symbol",
-                "EntryPrice",
-                "ExitPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-                "ExitType",
-            ]
-        )
+        openPnl = pd.DataFrame(columns=[
+                               "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl",])
+        closedPnl = pd.DataFrame(columns=["Key", "ExitTime", "Symbol", "EntryPrice",
+                                 "ExitPrice", "Quantity", "PositionStatus", "Pnl", "ExitType",])
 
         openCsvFiles = []
-        for file in os.listdir(
-            os.path.join(os.getcwd(), self.fileDir["backtestResultsOpenPnl"])
-        ):
+        for file in os.listdir(os.path.join(os.getcwd(), self.fileDir["backtestResultsOpenPnl"])):
             if file.endswith(".csv"):
-                openCsvFiles.append(
-                    os.path.join(
-                        os.getcwd(),
-                        os.path.join(self.fileDir["backtestResultsOpenPnl"], file),
-                    )
-                )
+                openCsvFiles.append(os.path.join(os.getcwd(), os.path.join(
+                    self.fileDir["backtestResultsOpenPnl"], file),))
 
         for csvFile in openCsvFiles:
             openPnl = pd.concat([openPnl, pd.read_csv(csvFile)])
 
         closeCsvFiles = []
-        for file in os.listdir(
-            os.path.join(os.getcwd(), self.fileDir["backtestResultsClosePnl"])
-        ):
+        for file in os.listdir(os.path.join(os.getcwd(), self.fileDir["backtestResultsClosePnl"])):
             if file.endswith(".csv"):
-                closeCsvFiles.append(
-                    os.path.join(
-                        os.getcwd(),
-                        os.path.join(self.fileDir["backtestResultsClosePnl"], file),
-                    )
-                )
+                closeCsvFiles.append(os.path.join(os.getcwd(), os.path.join(
+                    self.fileDir["backtestResultsClosePnl"], file),))
 
         for csvFile in closeCsvFiles:
             closedPnl = pd.concat([closedPnl, pd.read_csv(csvFile)])
@@ -343,16 +272,12 @@ class baseAlgoLogic:
         closedPnl.reset_index(inplace=True, drop=True)
 
         openPnl.to_csv(
-            f"{self.fileDir['backtestResultsStrategyUid']}openPnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv",
-            index=False,
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}openPnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv", index=False,)
         # logging.info("OpenPNL.csv saved.")
         self.strategyLogger.info("OpenPNL.csv saved.")
 
         closedPnl.to_csv(
-            f"{self.fileDir['backtestResultsStrategyUid']}closePnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv",
-            index=False,
-        )
+            f"{self.fileDir['backtestResultsStrategyUid']}closePnl_{self.devName}_{self.strategyName}_{self.version}_{self.fileDirUid}.csv", index=False,)
         # logging.info("ClosePNL.csv saved.")
         self.strategyLogger.info("ClosePNL.csv saved.")
 
@@ -396,7 +321,8 @@ class optAlgoLogic(baseAlgoLogic):
         elif isinstance(date, float):
             dateEpoch = date
         else:
-            raise Exception("date is not a timestamp(float or int) or datetime object")
+            raise Exception(
+                "date is not a timestamp(float or int) or datetime object")
 
         expiryData = getExpiryData(dateEpoch, baseSym)
         nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
@@ -407,17 +333,11 @@ class optAlgoLogic(baseAlgoLogic):
             symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
 
         remainder = indexPrice % expiryData["StrikeDist"]
-        atm = (
-            indexPrice - remainder
-            if remainder <= (expiryData["StrikeDist"] / 2)
-            else (indexPrice - remainder + expiryData["StrikeDist"])
-        )
+        atm = (indexPrice - remainder if remainder <= (expiryData["StrikeDist"] / 2) else (
+            indexPrice - remainder + expiryData["StrikeDist"]))
 
-        callSym = (
-            symWithExpiry
-            + str(int(atm) + (otmFactor * int(expiryData["StrikeDist"])))
-            + "CE"
-        )
+        callSym = (symWithExpiry + str(int(atm) +
+                   (otmFactor * int(expiryData["StrikeDist"]))) + "CE")
 
         return callSym
 
@@ -444,7 +364,8 @@ class optAlgoLogic(baseAlgoLogic):
         elif isinstance(date, float):
             dateEpoch = date
         else:
-            raise Exception("date is not a timestamp(float or int) or datetime object")
+            raise Exception(
+                "date is not a timestamp(float or int) or datetime object")
 
         expiryData = getExpiryData(dateEpoch, baseSym)
         nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
@@ -458,17 +379,11 @@ class optAlgoLogic(baseAlgoLogic):
             symWithExpiry = baseSym + expiryData["CurrentExpiry"]
 
         remainder = indexPrice % expiryData["StrikeDist"]
-        atm = (
-            indexPrice - remainder
-            if remainder <= (expiryData["StrikeDist"] / 2)
-            else (indexPrice - remainder + expiryData["StrikeDist"])
-        )
+        atm = (indexPrice - remainder if remainder <= (expiryData["StrikeDist"] / 2) else (
+            indexPrice - remainder + expiryData["StrikeDist"]))
 
-        putSym = (
-            symWithExpiry
-            + str(int(atm) - (otmFactor * int(expiryData["StrikeDist"])))
-            + "PE"
-        )
+        putSym = (symWithExpiry + str(int(atm) -
+                  (otmFactor * int(expiryData["StrikeDist"]))) + "PE")
 
         return putSym
 
@@ -488,28 +403,31 @@ class optAlgoLogic(baseAlgoLogic):
 
         """
         if len(self.symbolDataCache) > maxCacheSize:
+            symbolToDelete = []
             for symbol in self.symbolDataCache.keys():
-                idx = next(i for i, char in enumerate(symbol) if char.isdigit())
-                optionExpiry = (
-                    datetime.strptime(symbol[idx : idx + 7], "%d%b%y").timestamp()
-                    + 55800
-                )
+                idx = next(i for i, char in enumerate(
+                    symbol) if char.isdigit())
+                optionExpiry = (datetime.strptime(
+                    symbol[idx:idx + 7], "%d%b%y").timestamp() + 55800)
 
                 if self.timeData > optionExpiry:
-                    del self.symbolDataCache[symbol]
+                    symbolToDelete.append(symbol)
+                    # del self.symbolDataCache[symbol]
+
+            if symbolToDelete:
+                for sym in symbolToDelete:
+                    del self.symbolDataCache[sym]
 
         if symbol in self.symbolDataCache.keys():
             return self.symbolDataCache[symbol].loc[timestamp]
 
         else:
             idx = next(i for i, char in enumerate(symbol) if char.isdigit())
-            optionExpiry = (
-                datetime.strptime(symbol[idx : idx + 7], "%d%b%y").timestamp() + 55800
-            )
+            optionExpiry = (datetime.strptime(
+                symbol[idx:idx + 7], "%d%b%y").timestamp() + 55800)
 
             self.symbolDataCache[symbol] = getFnoBacktestData(
-                symbol, timestamp, optionExpiry, "1Min"
-            )
+                symbol, timestamp, optionExpiry, "1Min")
 
             return self.symbolDataCache[symbol].loc[timestamp]
 
@@ -533,17 +451,17 @@ class optAlgoLogic(baseAlgoLogic):
             elif isinstance(date, float):
                 getDatetime = datetime.fromtimestamp(date)
             else:
-                raise Exception("date is not a timestamp(float) or datetime object")
+                raise Exception(
+                    "date is not a timestamp(float) or datetime object")
 
             getDatetime = getDatetime.replace(hour=15, minute=30)
 
             if sym in self.expiryDataCache.keys():
-                index = self.expiryDataCache[sym].index.searchsorted(getDatetime) + 1
-                if (
-                    index < len(self.expiryDataCache[sym])
-                    and self.expiryDataCache[sym].index[index] == getDatetime
-                ):
-                    expiryDict = self.expiryDataCache[sym].iloc[index].to_dict()
+                index = self.expiryDataCache[sym].index.searchsorted(
+                    getDatetime) + 1
+                if (index < len(self.expiryDataCache[sym]) and self.expiryDataCache[sym].index[index] == getDatetime):
+                    expiryDict = self.expiryDataCache[sym].iloc[index].to_dict(
+                    )
                 elif index > 0:
                     expiryDict = self.expiryDataCache[sym].iloc[index - 1].to_dict()
                 return expiryDict
@@ -560,7 +478,8 @@ class optAlgoLogic(baseAlgoLogic):
                 if rec:
                     df = pd.DataFrame(rec)
                     df["Date"] = pd.to_datetime(df["Date"])
-                    df["Date"] = df["Date"] + pd.Timedelta(hours=15, minutes=30)
+                    df["Date"] = df["Date"] + pd.Timedelta(hours=15,
+                                                           minutes=30)
                     df.set_index("Date", inplace=True)
                     df.sort_index(inplace=True, ascending=True)
 
@@ -580,9 +499,7 @@ class optIntraDayAlgoLogic(optAlgoLogic):
         Inherits all attributes and functions from the optAlgoLogic class.
     """
 
-    def entryOrder(
-        self, entryPrice, symbol, quantity, positionStatus, extraColDict=None
-    ):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
@@ -616,21 +533,24 @@ class optOverNightAlgoLogic(optAlgoLogic):
         Inherits all attributes and functions from the optAlgoLogic class.
     """
 
-    def entryOrder(
-        self, entryPrice, symbol, quantity, positionStatus, extraColDict=None
-    ):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-        self.openPnl.to_csv(f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
 
     def exitOrder(self, index, exitType, exitPrice=None):
         super().exitOrder(index, exitType, exitPrice)
-        self.openPnl.to_csv(f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-        self.closedPnl.to_csv(f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
 
     def pnlCalculator(self):
         super().pnlCalculator()
-        self.openPnl.to_csv(f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-        self.closedPnl.to_csv(f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
 
 
 class equityOverNightAlgoLogic(baseAlgoLogic):
@@ -660,30 +580,10 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
         self.realizedPnl = 0
         self.netPnl = 0
 
-        self.openPnl = pd.DataFrame(
-            columns=[
-                "EntryTime",
-                "Symbol",
-                "EntryPrice",
-                "CurrentPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-            ]
-        )
-        self.closedPnl = pd.DataFrame(
-            columns=[
-                "Key",
-                "ExitTime",
-                "Symbol",
-                "EntryPrice",
-                "ExitPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-                "ExitType",
-            ]
-        )
+        self.openPnl = pd.DataFrame(columns=[
+                                    "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl",])
+        self.closedPnl = pd.DataFrame(columns=[
+                                      "Key", "ExitTime", "Symbol", "EntryPrice", "ExitPrice", "Quantity", "PositionStatus", "Pnl", "ExitType",])
 
         self.fileDir = fileDir
 
@@ -693,9 +593,7 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
         )
         self.strategyLogger.propagate = False
 
-    def entryOrder(
-        self, entryPrice, symbol, quantity, positionStatus, extraColDict=None
-    ):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
 
         self.openPnl.to_csv(
@@ -750,49 +648,23 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
         self.realizedPnl = 0
         self.netPnl = 0
 
-        self.openPnl = pd.DataFrame(
-            columns=[
-                "EntryTime",
-                "Symbol",
-                "EntryPrice",
-                "CurrentPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-            ]
-        )
-        self.closedPnl = pd.DataFrame(
-            columns=[
-                "Key",
-                "ExitTime",
-                "Symbol",
-                "EntryPrice",
-                "ExitPrice",
-                "Quantity",
-                "PositionStatus",
-                "Pnl",
-                "ExitType",
-            ]
-        )
+        self.openPnl = pd.DataFrame(columns=[
+                                    "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl",])
+        self.closedPnl = pd.DataFrame(columns=[
+                                      "Key", "ExitTime", "Symbol", "EntryPrice", "ExitPrice", "Quantity", "PositionStatus", "Pnl", "ExitType",])
 
         self.fileDir = fileDir
 
         self.strategyLogger = setup_logger(
-            "strategyLogger",
-            f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log",
-        )
+            "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log",)
         self.strategyLogger.propagate = False
 
     def init_logger(self):
-        self.strategyLogger = setup_logger(
-            f"{self.stockName}_{self.humanTime.date()}_logger",
-            f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log",
-        )
+        self.strategyLogger = setup_logger(f"{self.stockName}_{self.humanTime.date()}_logger",
+                                           f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
         self.strategyLogger.propagate = False
 
-    def entryOrder(
-        self, entryPrice, symbol, quantity, positionStatus, extraColDict=None
-    ):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
