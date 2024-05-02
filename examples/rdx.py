@@ -99,6 +99,7 @@ class algoLogic(optOverNightAlgoLogic):
 
             self.timeData = float(timeData)
             self.humanTime = datetime.fromtimestamp(timeData)
+            print(self.humanTime)
 
             # Skip time periods outside trading hours
             if (self.humanTime.time() < time(9, 16)) | (self.humanTime.time() > time(15, 30)):

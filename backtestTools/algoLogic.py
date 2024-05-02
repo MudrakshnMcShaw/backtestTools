@@ -297,6 +297,7 @@ class optAlgoLogic(baseAlgoLogic):
     def __init__(self, devName, strategyName, version):
         super().__init__(devName, strategyName, version)
         self.symbolDataCache = {}
+        self.expiryDataCache = {}
 
     def getCallSym(self, date, baseSym, indexPrice, otmFactor=0):
         """

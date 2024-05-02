@@ -47,6 +47,7 @@ class algoLogic(optIntraDayAlgoLogic):
         for timeData in df.index:
             self.timeData = timeData
             self.humanTime = datetime.fromtimestamp(timeData)
+            print(self.humanTime)
 
             # Skip time periods outside trading hours
             if (self.humanTime.time() < time(9, 16)) | (
