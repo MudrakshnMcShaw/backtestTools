@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="backtestTools",
-    version="2.0.9",
+    version="2.0.10",
     author="Mudraksh",
     author_email="contact.mudraksh@gmail.com",
     description="BacktestTools",

@@ -255,7 +255,7 @@ if __name__ == "__main__":
 
     print("Calculating Daily Pnl")
     dr = calculateDailyReport(
-        closedPnl, fileDir, timeFrame=timedelta(minutes=1), mtm=True
+        closedPnl, fileDir, timeFrame=timedelta(minutes=5), mtm=True
     )
 
     limitCapital(closedPnl, fileDir, maxCapitalAmount=1000)

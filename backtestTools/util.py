@@ -146,6 +146,41 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         capitalInvested = (openTrades["EntryPrice"]
                            * openTrades["Quantity"]).sum()
 
+        if fno:
+            nakedSell = 0
+            spread = 0
+            nakedBuy = 0
+            nakedBuyIndex = []
+            for index, row in openTrades.iterrows():
+                if row['PositionStatus'] == -1:
+                    if nakedBuy > 0:
+                        spread += 1
+                        nakedBuy -= 1
+                        nakedBuyIndex.pop(0)
+                        continue
+
+                    nakedSell += 1
+
+                elif row['PositionStatus'] == 1:
+                    if nakedSell > 0:
+                        spread += 1
+                        nakedSell -= 1
+                        continue
+
+                    nakedBuy += 1
+                    nakedBuyIndex.append(index)
+                    # nakedBuyMargin += row['EntryPrice']
+
+            capitalInvested = (nakedSell * 100000) + (spread * 30000)
+
+            if nakedBuyIndex:
+                for i in nakedBuyIndex:
+                    capitalInvested += openTrades.at[i,
+                                                     "EntryPrice"] * openTrades.at[i, "Quantity"]
+        else:
+            capitalInvested = (
+                openTrades["EntryPrice"] * openTrades["Quantity"]).sum()
+
         # Perform mark-to-market calculation if required
         if mtm:
             for symbol in openTrades["Symbol"].unique():

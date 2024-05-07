@@ -163,6 +163,7 @@ if __name__ == "__main__":
         if len(processes) >= maxConcurrentProcesses:
             for p in processes:
                 p.join()
+            processes = []
 
         currentDate += timedelta(days=1)
 
