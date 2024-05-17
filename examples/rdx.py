@@ -105,12 +105,6 @@ class algoLogic(optOverNightAlgoLogic):
             if (self.humanTime.time() < time(9, 16)) | (self.humanTime.time() > time(15, 30)):
                 continue
 
-            # Update lastIndexTimeData
-            lastIndexTimeData.pop(0)
-            lastIndexTimeData.append(timeData - 60)
-            last5MinIndexTimeData.pop(0)
-            last5MinIndexTimeData.append(timeData - 300)
-
             # Strategy Specific Trading Time
             if (self.humanTime.time() < time(9, 20)) | (self.humanTime.time() > time(15, 25)):
                 continue
@@ -163,7 +157,7 @@ class algoLogic(optOverNightAlgoLogic):
                         putTradeCounter += 1
 
             # Check for entry signals and execute orders
-            if last5MinIndexTimeData[1] in df_5min.index:
+            if (last5MinIndexTimeData[1] in df_5min.index):
                 if df_5min.at[last5MinIndexTimeData[1], "rsiCross50"] == 1:
                     callEntryAllow = True
                     putEntryAllow = True
@@ -186,7 +180,7 @@ class algoLogic(optOverNightAlgoLogic):
                         target = 0.5 * data["c"]
                         stoploss = 1.3 * data["c"]
                         baseSymStoploss = max(
-                            [df_5min.at[last5MinIndexTimeData[1], "h"], df_5min.at[timeData, "h"],])
+                            [df_5min.at[last5MinIndexTimeData[1], "h"], df_5min.at[last5MinIndexTimeData[1], "h"],])
 
                         self.entryOrder(data["c"], callSym, lotSize, "SELL", {
                                         "Target": target,
@@ -214,7 +208,7 @@ class algoLogic(optOverNightAlgoLogic):
                         target = 0.5 * data["c"]
                         stoploss = 1.3 * data["c"]
                         baseSymStoploss = min(
-                            [df_5min.at[last5MinIndexTimeData[1], "l"], df_5min.at[timeData, "l"],])
+                            [df_5min.at[last5MinIndexTimeData[0], "l"], df_5min.at[last5MinIndexTimeData[1], "l"],])
 
                         self.entryOrder(data["c"], putSym, lotSize, "SELL", {
                                         "Target": target,
@@ -223,6 +217,13 @@ class algoLogic(optOverNightAlgoLogic):
                                         "Expiry": expiryEpoch, },
                                         )
                         putEntryAllow = False
+
+            # Update lastIndexTimeData
+            lastIndexTimeData.pop(0)
+            lastIndexTimeData.append(timeData)
+            if timeData in df_5min.index:
+                last5MinIndexTimeData.pop(0)
+                last5MinIndexTimeData.append(timeData)
 
         # Calculate final PnL and combine CSVs
         self.pnlCalculator()
@@ -241,7 +242,7 @@ if __name__ == "__main__":
 
     # Define Start date and End date
     startDate = datetime(2023, 1, 1, 9, 15)
-    endDate = datetime(2023, 1, 31, 15, 30)
+    endDate = datetime(2023, 1, 10, 15, 30)
 
     # Create algoLogic object
     algo = algoLogic(devName, strategyName, version)
@@ -264,7 +265,3 @@ if __name__ == "__main__":
 
     endTime = datetime.now()
     print(f"Done. Ended in {endTime-startTime}")
-
-    # Backtest time = 09:50
-    # Backtest time = 07:27
-    # Backtest time = 07:27

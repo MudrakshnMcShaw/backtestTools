@@ -42,3 +42,5 @@ venv.bak/
 *.log
 
 dist/
+
+*.json

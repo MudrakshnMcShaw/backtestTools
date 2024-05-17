@@ -1,3 +1,4 @@
+import json
 import logging
 import pandas as pd
 from datetime import time, timedelta
@@ -100,8 +101,9 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
     closedPnl["Key"] = pd.to_datetime(closedPnl["Key"])
     closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
 
-    startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
-    endDatetime = (closedPnl["ExitTime"].iloc[-1].to_pydatetime()) + timeFrame
+    startDatetime = closedPnl["Key"].min(
+    ).to_pydatetime().replace(hour=9, minute=15)
+    endDatetime = (closedPnl["ExitTime"].max().to_pydatetime()) + timeFrame
 
     dailyReport = pd.DataFrame(
         columns=["Date", "OpenTrades", "CapitalInvested", "CumulativePnl", "mtmPnl"])
@@ -143,8 +145,6 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         # Calculate capital invested for open trades
         openTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
             closedPnl["ExitTime"] >= nextDatetime)]
-        capitalInvested = (openTrades["EntryPrice"]
-                           * openTrades["Quantity"]).sum()
 
         if fno:
             nakedSell = 0
@@ -239,6 +239,29 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
 
     dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
     print("dailyReport.csv saved")
+
+    closedPnlCopy = closedPnl.copy(deep=True)
+
+    for col in closedPnlCopy.select_dtypes(include=['datetime64[ns]']):
+        closedPnlCopy[col] = closedPnlCopy[col].dt.strftime(
+            '%Y-%m-%d %H:%M:%S')  # ISO 8601 format
+
+    for col in dailyReport.select_dtypes(include=['datetime64[ns]']):
+        dailyReport[col] = dailyReport[col].dt.strftime(
+            '%Y-%m-%d %H:%M:%S')  # ISO 8601 format
+
+    merged_data = {}
+
+    # Add data from each DataFrame to the dictionary with appropriate keys
+    merged_data["closedPnl"] = closedPnlCopy.to_dict(orient='records')
+    merged_data["mtm"] = dailyReport.to_dict(orient='records')
+
+    # Convert dictionary to JSON string
+    json_data = json.dumps(merged_data, indent=4)  # indent for readability
+
+    # Write JSON data to a file (optional)
+    with open(f"{saveFileDir}/backtestEngine.json", "w") as outfile:
+        outfile.write(json_data)
 
     return dailyReport
 
