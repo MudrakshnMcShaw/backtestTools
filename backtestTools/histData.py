@@ -126,7 +126,7 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
                 })
             else:
                 df = df.between_time("09:15:00", "15:29:00")
-                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg(
+                df_resample = df.resample(interval, origin="9:15").agg(
                     {"o": "first",
                      "h": "max",
                      "l": "min",
@@ -247,7 +247,7 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
 
             else:
                 df = df.between_time("09:15:00", "15:29:00")
-                df_resample = df.resample(interval, offset=pd.Timedelta(minutes=15)).agg(
+                df_resample = df.resample(interval, origin="9:15").agg(
                     {"o": "first",
                      "h": "max",
                      "l": "min",
