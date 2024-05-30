@@ -101,6 +101,9 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
     closedPnl["Key"] = pd.to_datetime(closedPnl["Key"])
     closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
 
+    # startDatetime = closedPnl["Key"].iloc[0].to_pydatetime()
+    # endDatetime = (closedPnl["ExitTime"].iloc[-1].to_pydatetime()) + timeFrame + timeFrame
+
     startDatetime = closedPnl["Key"].min(
     ).to_pydatetime().replace(hour=9, minute=15)
     endDatetime = (closedPnl["ExitTime"].max().to_pydatetime()) + timeFrame
@@ -145,6 +148,8 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         # Calculate capital invested for open trades
         openTrades = closedPnl[(closedPnl["Key"] < nextDatetime) & (
             closedPnl["ExitTime"] >= nextDatetime)]
+        # capitalInvested = (openTrades["EntryPrice"]
+        #                    * openTrades["Quantity"]).sum()
 
         if fno:
             nakedSell = 0
@@ -226,9 +231,7 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         progress_percentage = (
             (currentDatetime - startDatetime) / (endDatetime - startDatetime)) * 100
         print(f"Progress: {progress_percentage:.2f}%", end="\r")
-        dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
-
-        dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
+        # dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
 
     # Calculate peak and drawdown
     dailyReport["Peak"] = dailyReport["CumulativePnl"].cummax()
@@ -236,8 +239,10 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         dailyReport["Peak"]
 
     # dailyReport["mtmPnl"] = dailyReport["CumulativePnl"].diff()
+    saveFileSplit = saveFileDir.split('/')[1:]
+    saveFile = '_'.join(saveFileSplit)
 
-    dailyReport.to_csv(f"{saveFileDir}/dailyReport.csv")
+    dailyReport.to_csv(f"{saveFileDir}/mtm_{saveFile}.csv")
     print("dailyReport.csv saved")
 
     closedPnlCopy = closedPnl.copy(deep=True)
@@ -257,10 +262,11 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
     merged_data["mtm"] = dailyReport.to_dict(orient='records')
 
     # Convert dictionary to JSON string
-    json_data = json.dumps(merged_data, indent=4)  # indent for readability
+    json_data = json.dumps(merged_data)
 
     # Write JSON data to a file (optional)
-    with open(f"{saveFileDir}/backtestEngine.json", "w") as outfile:
+    # with open(f"{saveFileDir}/backtestEngine.json", "w") as outfile:
+    with open(f"{saveFileDir}/BacktestResults_{saveFile}.json", "w") as outfile:
         outfile.write(json_data)
 
     return dailyReport
