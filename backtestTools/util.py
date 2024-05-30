@@ -239,8 +239,15 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
         dailyReport["Peak"]
 
     # dailyReport["mtmPnl"] = dailyReport["CumulativePnl"].diff()
-    saveFileSplit = saveFileDir.split('/')[1:]
-    saveFile = '_'.join(saveFileSplit)
+    saveFileSplit = saveFileDir.split('/')[::-1]
+    saveFileSplitLen = len(saveFileSplit)
+    for i in range(saveFileSplitLen):
+        if '_' in saveFileSplit[i]:
+            saveFile = '_'.join(saveFileSplit[:i+1][::-1])
+            break
+
+    if saveFile is None:
+        saveFile = saveFileDir.split('/')
 
     dailyReport.to_csv(f"{saveFileDir}/mtm_{saveFile}.csv")
     print("dailyReport.csv saved")
@@ -266,7 +273,7 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
 
     # Write JSON data to a file (optional)
     # with open(f"{saveFileDir}/backtestEngine.json", "w") as outfile:
-    with open(f"{saveFileDir}/BacktestResults_{saveFile}.json", "w") as outfile:
+    with open(f"{saveFileDir}/{saveFile}.json", "w") as outfile:
         outfile.write(json_data)
 
     return dailyReport
