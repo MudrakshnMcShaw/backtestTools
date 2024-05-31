@@ -206,7 +206,7 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
                 symbolOpenTrades = openTrades[openTrades["Symbol"] == symbol].copy(
                     deep=True)
                 symbolOpenTrades["Pnl"] = (
-                    currentData["o"] - symbolOpenTrades["EntryPrice"]) * symbolOpenTrades["Quantity"]
+                    currentData["o"] - symbolOpenTrades["EntryPrice"]) * symbolOpenTrades["Quantity"] * symbolOpenTrades["PositionStatus"]
                 cumulativePnl += symbolOpenTrades["Pnl"].sum()
 
         # Update daily report DataFrame
@@ -241,13 +241,14 @@ def calculateDailyReport(closedPnl, saveFileDir, timeFrame=timedelta(minutes=1),
     # dailyReport["mtmPnl"] = dailyReport["CumulativePnl"].diff()
     saveFileSplit = saveFileDir.split('/')[::-1]
     saveFileSplitLen = len(saveFileSplit)
+    saveFile = None
     for i in range(saveFileSplitLen):
         if '_' in saveFileSplit[i]:
             saveFile = '_'.join(saveFileSplit[:i+1][::-1])
             break
 
     if saveFile is None:
-        saveFile = saveFileDir.split('/')
+        saveFile = saveFileDir.split('/')[-1]
 
     dailyReport.to_csv(f"{saveFileDir}/mtm_{saveFile}.csv")
     print("dailyReport.csv saved")

@@ -9,12 +9,12 @@ if __name__ == "__main__":
     # Define Strategy Nomenclature
     devName = "NA"
     # Change 'strategyName' from 'rsiDmiIntraday' to 'rsiDmiOvernight' to switch between strategy
-    strategyName = "rsiDmiOvernight"
+    strategyName = "rsiDmiIntraday"
     version = "v1"
 
     # Define Start date and End date
-    startDate = datetime(2023, 1, 1, 9, 15)
-    endDate = datetime(2023, 1, 31, 15, 30)
+    startDate = datetime(2021, 1, 1, 9, 15)
+    endDate = datetime(2021, 12, 31, 15, 30)
     # endDate = datetime.now()
 
     portfolio = createPortfolio("stocksList/test1.md")
