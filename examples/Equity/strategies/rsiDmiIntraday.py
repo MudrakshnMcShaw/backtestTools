@@ -1,3 +1,4 @@
+import threading
 import pandas as pd
 import talib
 import logging
@@ -6,9 +7,14 @@ import multiprocessing
 from termcolor import colored, cprint
 from datetime import datetime, time, timedelta
 from backtestTools.util import setup_logger
-# from backtestTools.histData import getEquityHistData
+from backtestTools.histData import getEquityHistData
 from backtestTools.histData import getEquityBacktestData
 from backtestTools.algoLogic import baseAlgoLogic, equityIntradayAlgoLogic
+
+
+rsi_upperBand = 60
+rsi_lowerBand = 40
+di_cross = 15
 
 
 class rsiDmiIntradayStrategy(baseAlgoLogic):
@@ -16,39 +22,115 @@ class rsiDmiIntradayStrategy(baseAlgoLogic):
         if self.strategyName != "rsiDmiIntraday":
             raise Exception("Strategy Name Mismatch")
 
+        # Calculate total number of backtests
+        total_backtests = sum(len(batch) for batch in portfolio)
+        completed_backtests = 0
         cprint(
-            f"Backtesting: {self.strategyName} UID: {self.fileDirUid}", "green")
-        total_days = (endDate.date() - startDate.date()).days
-        current_day = -1
+            f"Backtesting: {self.strategyName}_{self.version} UID: {self.fileDirUid}", "green")
+        print(colored("Backtesting 0% complete.", "light_yellow"), end="\r")
 
-        currentDate = startDate.date()
-        while currentDate <= endDate.date():
-            startTime = datetime.combine(currentDate, time(9, 15, 0))
-            endTime = datetime.combine(currentDate, time(15, 30, 0))
+        for batch in portfolio:
+            processes = []
+            for stock in batch:
+                p = multiprocessing.Process(
+                    target=self.backtestStock, args=(stock, startDate, endDate))
+                p.start()
+                processes.append(p)
 
-            for batch in portfolio:
-                processes = []
-                for stock in batch:
-                    p = multiprocessing.Process(
-                        target=self.backtest, args=(stock, startTime, endTime))
-                    p.start()
-                    processes.append(p)
-
-                # Wait for all processes to finish
-                for p in processes:
-                    p.join()
-
-            currentDate += timedelta(days=1)
-            current_day += 1
-
-            progress_percent = (current_day / total_days) * 100
-            print(colored(f"Progress: {current_day}/{total_days} days ({progress_percent:.2f}%)", "light_yellow"),
-                  end=("\r" if progress_percent != 100 else "\n"))
+            # Wait for all processes to finish
+            for p in processes:
+                p.join()
+                completed_backtests += 1
+                percent_done = (completed_backtests / total_backtests) * 100
+                print(colored(f"Backtesting {percent_done:.2f}% complete.", "light_yellow"), end=(
+                    "\r" if percent_done != 100 else "\n"))
 
         return self.fileDir["backtestResultsStrategyUid"], self.combinePnlCsv()
 
-    def backtest(self, stockName, startDate, endDate):
+    def backtestStock(self, stockName, startDate, endDate):
+        startTimeEpoch = startDate.timestamp()
+        endTimeEpoch = endDate.timestamp()
 
+        try:
+            # Subtracting 31540000 to subtract 1 year from startTimeEpoch
+            df_1d = getEquityBacktestData(
+                stockName, startTimeEpoch-31540000, endTimeEpoch, "D")
+            # Subtracting 864000 to subtract 10 days from startTimeEpoch
+            df_15m = getEquityBacktestData(
+                stockName, startTimeEpoch-864000, endTimeEpoch, "2H")
+        except Exception as e:
+            raise Exception(e)
+
+        try:
+            df_15m.dropna(inplace=True)
+            df_1d.dropna(inplace=True)
+        except:
+            self.strategyLogger.info(f"Data not found for {stockName}")
+            return
+
+        df_1d["ti"] = df_1d["ti"] + 33300
+
+        df_15m.set_index("ti", inplace=True)
+        df_1d.set_index("ti", inplace=True)
+
+        df_1d["ema10"] = talib.EMA(df_1d["c"], timeperiod=10)
+        df_1d["ema110"] = talib.EMA(df_1d["c"], timeperiod=50)
+
+        df_15m["plus_di"] = talib.PLUS_DI(
+            df_15m["h"], df_15m["l"], df_15m["c"], timeperiod=14)
+        df_15m["minus_di"] = talib.MINUS_DI(
+            df_15m["h"], df_15m["l"], df_15m["c"], timeperiod=14)
+
+        df_15m["rsi"] = talib.RSI(df_15m["c"], timeperiod=14)
+
+        df_15m["diPlusCross"] = np.where((df_15m["plus_di"] >= di_cross) & (
+            df_15m["plus_di"].shift(1) < di_cross), 1, 0)
+        df_15m["diMinusCross"] = np.where((df_15m["minus_di"] >= di_cross) & (
+            df_15m["minus_di"].shift(1) < di_cross), 1, 0)
+
+        df_15m["rsiLongCross"] = np.where((df_15m["rsi"] >= rsi_upperBand) & (df_15m["rsi"].shift(
+            1) < rsi_upperBand), 1, np.where((df_15m["rsi"] <= rsi_upperBand) & (df_15m["rsi"].shift(1) > rsi_upperBand), -1, 0))
+        df_15m["rsiShortCross"] = np.where((df_15m["rsi"] <= rsi_lowerBand) & (df_15m["rsi"].shift(
+            1) > rsi_lowerBand), 1, np.where((df_15m["rsi"] >= rsi_lowerBand) & (df_15m["rsi"].shift(1) < rsi_lowerBand), -1, 0))
+
+        df_15m.dropna(inplace=True)
+        df_1d.dropna(inplace=True)
+
+        for day in range(0, (endDate - startDate).days, 5):
+            threads = []
+            for i in range(5):
+                currentDate = (
+                    startDate + timedelta(days=(day+i)))
+
+                startDatetime = datetime.combine(
+                    currentDate.date(), time(9, 15, 0))
+                endDatetime = datetime.combine(
+                    currentDate.date(), time(15, 30, 0))
+
+                startEpoch = startDatetime.timestamp()
+                endEpoch = endDatetime.timestamp()
+
+                currentDate15MinDf = df_15m[(df_15m.index >= startEpoch) & (
+                    df_15m.index <= endEpoch)].copy(deep=True)
+                if currentDate15MinDf.empty:
+                    continue
+
+                df1DBeforeCurrentDate = df_1d[df_1d.index <= endEpoch]
+                try:
+                    trend = 1 if df1DBeforeCurrentDate.at[df1DBeforeCurrentDate.index[-2],
+                                                          "ema10"] > df1DBeforeCurrentDate.at[df1DBeforeCurrentDate.index[-2], "ema110"] else -1
+                except Exception as e:
+                    trend = 0
+
+                t = threading.Thread(
+                    target=self.backtestDay, args=(stockName, startDatetime, endDatetime, currentDate15MinDf, trend))
+                t.start()
+                threads.append(t)
+
+            for t in threads:
+                t.join()
+
+    def backtestDay(self, stockName, startDate, endDate, df, trend):
         # Set start and end timestamps for data retrieval
         startTimeEpoch = startDate.timestamp()
         endTimeEpoch = endDate.timestamp()
@@ -57,57 +139,27 @@ class rsiDmiIntradayStrategy(baseAlgoLogic):
         stockAlgoLogic.humanTime = startDate
 
         logger = setup_logger(
-            stockName, f"{stockAlgoLogic.fileDir['backtestResultsStrategyLogs']}{stockName}_{stockAlgoLogic.humanTime.date()}_log.log",)
+            f"{stockName}_{stockAlgoLogic.humanTime.date()}", f"{stockAlgoLogic.fileDir['backtestResultsStrategyLogs']}{stockName}_{stockAlgoLogic.humanTime.date()}_log.log",)
         logger.propagate = False
-
-        try:
-            # Subtracting 2592000 to subtract 10 days from startTimeEpoch
-            df = getEquityBacktestData(
-                stockName, startTimeEpoch-864000, endTimeEpoch, "15Min")
-        except Exception as e:
-            raise Exception(e)
-
-        df.dropna(inplace=True)
-
-        df["plus_di"] = talib.PLUS_DI(df["h"], df["l"], df["c"], timeperiod=25)
-        df["minus_di"] = talib.MINUS_DI(
-            df["h"], df["l"], df["c"], timeperiod=25)
-
-        df["rsi"] = talib.RSI(df["c"], timeperiod=14)
-
-        df["diPlusCross"] = np.where((df["plus_di"] >= 25) & (
-            df["plus_di"].shift(1) < 25), 1, 0)
-        df["diMinusCross"] = np.where((df["minus_di"] >= 25) & (
-            df["minus_di"].shift(1) < 25), 1, 0)
-
-        df["rsiLongCross"] = np.where((df["rsi"] >= 65) & (df["rsi"].shift(
-            1) < 65), 1, np.where((df["rsi"] <= 65) & (df["rsi"].shift(1) > 65), -1, 0))
-        df["rsiShortCross"] = np.where((df["rsi"] <= 35) & (df["rsi"].shift(
-            1) > 35), 1, np.where((df["rsi"] >= 35) & (df["rsi"].shift(1) < 35), -1, 0))
-
-        # Filter dataframe from timestamp greater than start time timestamp
-        df = df[df.index >= startTimeEpoch]
-        if df.empty:
-            return
 
         df.to_csv(
             f"{stockAlgoLogic.fileDir['backtestResultsCandleData']}{stockName}_{stockAlgoLogic.humanTime.date()}_df.csv")
 
         amountPerTrade = 100000
-        lastIndexTimeData = None
+        lastIndexTimeData = [0, 0]
 
         for timeData in df.index:
             stockAlgoLogic.timeData = timeData
             stockAlgoLogic.humanTime = datetime.fromtimestamp(timeData)
 
-            if lastIndexTimeData in df.index:
+            if lastIndexTimeData[1] in df.index:
                 logger.info(
-                    f"Datetime: {stockAlgoLogic.humanTime}\tStock: {stockName}\tClose: {df.at[lastIndexTimeData,'c']}")
+                    f"Datetime: {stockAlgoLogic.humanTime}\tStock: {stockName}\tClose: {df.at[lastIndexTimeData[1],'c']}\tTrend: {trend}")
 
             if not stockAlgoLogic.openPnl.empty:
                 for index, row in stockAlgoLogic.openPnl.iterrows():
                     stockAlgoLogic.openPnl.at[index,
-                                              "CurrentPrice"] = df.at[lastIndexTimeData, "c"]
+                                              "CurrentPrice"] = df.at[lastIndexTimeData[1], "c"]
 
             stockAlgoLogic.pnlCalculator()
 
@@ -116,39 +168,36 @@ class rsiDmiIntradayStrategy(baseAlgoLogic):
                     exitType = "Time Up"
                     stockAlgoLogic.exitOrder(index, exitType)
                 elif row["PositionStatus"] == 1:
-                    if row["CurrentPrice"] <= (0.997*row["EntryPrice"]):
+                    if df.at[lastIndexTimeData[1], "l"] <= (0.995*row["EntryPrice"]):
                         exitType = "Stoploss Hit"
                         stockAlgoLogic.exitOrder(
-                            index, exitType, (0.997*row["EntryPrice"]))
-                    elif (df.at[lastIndexTimeData, "rsiLongCross"] == -1):
-                        exitType = "RSI Long Exit Signal"
-                        stockAlgoLogic.exitOrder(index, exitType)
+                            index, exitType, (0.995*row["EntryPrice"]))
                 elif row["PositionStatus"] == -1:
-                    if row["CurrentPrice"] >= (1.003*row["EntryPrice"]):
+                    if df.at[lastIndexTimeData[1], "h"] >= (1.005*row["EntryPrice"]):
                         exitType = "Stoploss Hit"
                         stockAlgoLogic.exitOrder(
-                            index, exitType, (1.003*row["EntryPrice"]))
-                    elif (df.at[lastIndexTimeData, "rsiShortCross"] == -1):
-                        exitType = "RSI Short Exit Signal"
-                        stockAlgoLogic.exitOrder(index, exitType)
+                            index, exitType, (1.005*row["EntryPrice"]))
 
-            if (lastIndexTimeData in df.index) & (stockAlgoLogic.humanTime.time() < time(15, 15)):
-                if (df.at[lastIndexTimeData, "plus_di"] >= 25) & (df.at[lastIndexTimeData, "rsiLongCross"] == 1):
-                    entry_price = df.at[lastIndexTimeData, "c"]
-                    stockAlgoLogic.entryOrder(
-                        entry_price, stockName,  (amountPerTrade//entry_price), "BUY")
-                elif (df.at[lastIndexTimeData, "rsi"] >= 65) & (df.at[lastIndexTimeData, "diPlusCross"] == 1):
-                    entry_price = df.at[lastIndexTimeData, "c"]
-                    stockAlgoLogic.entryOrder(
-                        entry_price, stockName, (amountPerTrade//entry_price), "BUY")
-                elif (df.at[lastIndexTimeData, "minus_di"] >= 25) & (df.at[lastIndexTimeData, "rsiShortCross"] == 1):
-                    entry_price = df.at[lastIndexTimeData, "c"]
-                    stockAlgoLogic.entryOrder(entry_price, stockName,
-                                              (amountPerTrade//entry_price), "SELL")
-                elif (df.at[lastIndexTimeData, "rsi"] <= 35) & (df.at[lastIndexTimeData, "diMinusCross"] == 1):
-                    entry_price = df.at[lastIndexTimeData, "c"]
-                    stockAlgoLogic.entryOrder(entry_price, stockName,
-                                              (amountPerTrade//entry_price), "SELL")
+            if (stockAlgoLogic.openPnl.empty & stockAlgoLogic.closedPnl.empty) & (lastIndexTimeData[0] in df.index) & (lastIndexTimeData[1] in df.index) & (stockAlgoLogic.humanTime.time() > time(9, 45)) & (stockAlgoLogic.humanTime.time() < time(15, 15)):
+                if trend == 1:
+                    if (df.at[lastIndexTimeData[0], "plus_di"] >= 30) & (df.at[lastIndexTimeData[0], "rsiLongCross"] == 1) & (df.at[lastIndexTimeData[1], "plus_di"] >= 30) & (df.at[lastIndexTimeData[1], "rsi"] >= rsi_upperBand):
+                        entry_price = df.at[lastIndexTimeData[1], "c"]
+                        stockAlgoLogic.entryOrder(
+                            entry_price, stockName,  (amountPerTrade//entry_price), "BUY")
+                    elif (df.at[lastIndexTimeData[0], "rsi"] >= rsi_upperBand) & (df.at[lastIndexTimeData[0], "diPlusCross"] == 1) & (df.at[lastIndexTimeData[1], "plus_di"] >= 30) & (df.at[lastIndexTimeData[1], "rsi"] >= rsi_upperBand):
+                        entry_price = df.at[lastIndexTimeData[1], "c"]
+                        stockAlgoLogic.entryOrder(
+                            entry_price, stockName, (amountPerTrade//entry_price), "BUY")
+                elif trend == -1:
+                    if (df.at[lastIndexTimeData[0], "minus_di"] >= 30) & (df.at[lastIndexTimeData[0], "rsiShortCross"] == 1) & (df.at[lastIndexTimeData[1], "minus_di"] >= 30) & (df.at[lastIndexTimeData[1], "rsi"] <= rsi_lowerBand):
+                        entry_price = df.at[lastIndexTimeData[1], "c"]
+                        stockAlgoLogic.entryOrder(entry_price, stockName,
+                                                  (amountPerTrade//entry_price), "SELL")
+                    elif (df.at[lastIndexTimeData[0], "rsi"] <= rsi_lowerBand) & (df.at[lastIndexTimeData[0], "diMinusCross"] == 1) & (df.at[lastIndexTimeData[1], "minus_di"] >= 30) & (df.at[lastIndexTimeData[1], "rsi"] <= rsi_lowerBand):
+                        entry_price = df.at[lastIndexTimeData[1], "c"]
+                        stockAlgoLogic.entryOrder(entry_price, stockName,
+                                                  (amountPerTrade//entry_price), "SELL")
 
-            lastIndexTimeData = timeData
+            lastIndexTimeData.pop(0)
+            lastIndexTimeData.append(timeData)
             stockAlgoLogic.pnlCalculator()
