@@ -109,6 +109,13 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
 
         if rec:
             df = pd.DataFrame(rec)
+
+            if 'oi' in df.columns:
+                df['oi'] = df["oi"].fillna(0)
+
+            if 'date' in df.columns:
+                df['date'] = df["date"].fillna(pd.to_datetime(df["ti"]))
+
             df.dropna(inplace=True)
             df.drop_duplicates(subset="ti", inplace=True)
             df.sort_values(by=["ti"], inplace=True, ascending=True)
@@ -228,6 +235,12 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
 
         if rec:
             df = pd.DataFrame(rec)
+
+            if 'oi' in df.columns:
+                df['oi'] = df["oi"].fillna(0)
+
+            if 'date' in df.columns:
+                df['date'] = df["date"].fillna(pd.to_datetime(df["ti"]))
 
             df.dropna(inplace=True)
             df.drop_duplicates(subset="ti", inplace=True)

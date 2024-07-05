@@ -101,7 +101,7 @@ class rsiDmiOvernightStrategy(baseAlgoLogic):
 
             for index, row in stockAlgoLogic.openPnl.iterrows():
                 if lastIndexTimeData in df.index:
-                    if df.at[lastIndexTimeData, "c"] <= (0.99*row["EntryPrice"]):
+                    if df.at[lastIndexTimeData, "l"] <= (0.99*row["EntryPrice"]):
                         exitType = "Stoploss Hit"
                         stockAlgoLogic.exitOrder(
                             index, exitType, (0.99*row["EntryPrice"]))
