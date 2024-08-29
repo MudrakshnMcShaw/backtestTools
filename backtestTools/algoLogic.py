@@ -299,7 +299,7 @@ class optAlgoLogic(baseAlgoLogic):
         self.symbolDataCache = {}
         self.expiryDataCache = {}
 
-    def getCallSym(self, date, baseSym, indexPrice, otmFactor=0):
+    def getCallSym(self, date, baseSym, indexPrice, expiry=None, otmFactor=0):
         """
         Creates the call symbol based on provided parameters.
 
@@ -326,12 +326,16 @@ class optAlgoLogic(baseAlgoLogic):
                 "date is not a timestamp(float or int) or datetime object")
 
         expiryData = getExpiryData(dateEpoch, baseSym)
-        nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
 
-        if expiryData["CurrentExpiry"] == nextExpiryData["CurrentExpiry"]:
-            symWithExpiry = baseSym + expiryData["CurrentExpiry"]
+        if expiry is None:
+            nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
+
+            if expiryData["CurrentExpiry"] == nextExpiryData["CurrentExpiry"]:
+                symWithExpiry = baseSym + expiryData["CurrentExpiry"]
+            else:
+                symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
         else:
-            symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
+            symWithExpiry = baseSym + expiry
 
         remainder = indexPrice % expiryData["StrikeDist"]
         atm = (indexPrice - remainder if remainder <= (expiryData["StrikeDist"] / 2) else (
@@ -342,7 +346,7 @@ class optAlgoLogic(baseAlgoLogic):
 
         return callSym
 
-    def getPutSym(self, date, baseSym, indexPrice, otmFactor=0):
+    def getPutSym(self, date, baseSym, indexPrice, expiry=None, otmFactor=0):
         """
         Creates the put symbol based on provided parameters.
 
@@ -369,15 +373,16 @@ class optAlgoLogic(baseAlgoLogic):
                 "date is not a timestamp(float or int) or datetime object")
 
         expiryData = getExpiryData(dateEpoch, baseSym)
-        nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
 
-        expiry = expiryData["CurrentExpiry"]
-        expiryDatetime = datetime.strptime(expiry, "%d%b%y")
+        if expiry is None:
+            nextExpiryData = getExpiryData(dateEpoch + 86400, baseSym)
 
-        if self.humanTime.date() == expiryDatetime.date():
-            symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
+            if expiryData["CurrentExpiry"] == nextExpiryData["CurrentExpiry"]:
+                symWithExpiry = baseSym + expiryData["CurrentExpiry"]
+            else:
+                symWithExpiry = baseSym + nextExpiryData["CurrentExpiry"]
         else:
-            symWithExpiry = baseSym + expiryData["CurrentExpiry"]
+            symWithExpiry = baseSym + expiry
 
         remainder = indexPrice % expiryData["StrikeDist"]
         atm = (indexPrice - remainder if remainder <= (expiryData["StrikeDist"] / 2) else (
@@ -388,7 +393,7 @@ class optAlgoLogic(baseAlgoLogic):
 
         return putSym
 
-    def fetchAndCacheFnoHistData(self, symbol, timestamp, maxCacheSize=50):
+    def fetchAndCacheFnoHistData(self, symbol, timestamp, maxCacheSize=100):
         """
         Fetches and caches historical data for a given F&O symbol and timestamp.
 
@@ -403,16 +408,17 @@ class optAlgoLogic(baseAlgoLogic):
             DataFrame: Historical data for the specified F&O symbol and timestamp.
 
         """
+        # print(len(self.symbolDataCache))
         if len(self.symbolDataCache) > maxCacheSize:
             symbolToDelete = []
-            for symbol in self.symbolDataCache.keys():
+            for sym in self.symbolDataCache.keys():
                 idx = next(i for i, char in enumerate(
-                    symbol) if char.isdigit())
+                    sym) if char.isdigit())
                 optionExpiry = (datetime.strptime(
-                    symbol[idx:idx + 7], "%d%b%y").timestamp() + 55800)
+                    sym[idx:idx + 7], "%d%b%y").timestamp() + 55800)
 
                 if self.timeData > optionExpiry:
-                    symbolToDelete.append(symbol)
+                    symbolToDelete.append(sym)
                     # del self.symbolDataCache[symbol]
 
             if symbolToDelete:

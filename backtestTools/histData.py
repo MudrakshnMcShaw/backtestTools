@@ -112,11 +112,18 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
 
             if 'oi' in df.columns:
                 df['oi'] = df["oi"].fillna(0)
+            else:
+                df['oi'] = 0
+
+            if 'v' in df.columns:
+                df['v'] = df["v"].fillna(0)
+            else:
+                df['v'] = 0
 
             if 'date' in df.columns:
                 df['date'] = df["date"].fillna(pd.to_datetime(df["ti"]))
 
-            df.dropna(inplace=True)
+            # df.dropna(inplace=True)
             df.drop_duplicates(subset="ti", inplace=True)
             df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.set_index("ti", inplace=True)
@@ -129,7 +136,9 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
                     "o": "first",
                     "h": "max",
                     "l": "min",
-                    "c": "last"
+                    "c": "last",
+                    "v": "sum",
+                    "oi": "sum",
                 })
             else:
                 df = df.between_time("09:15:00", "15:29:00")
@@ -137,7 +146,9 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
                     {"o": "first",
                      "h": "max",
                      "l": "min",
-                     "c": "last"}
+                     "c": "last",
+                     "v": "sum",
+                     "oi": "sum", }
                 )
 
             df_resample.index = (
@@ -238,11 +249,18 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
 
             if 'oi' in df.columns:
                 df['oi'] = df["oi"].fillna(0)
+            else:
+                df['oi'] = 0
+
+            if 'v' in df.columns:
+                df['v'] = df["v"].fillna(0)
+            else:
+                df['v'] = 0
 
             if 'date' in df.columns:
                 df['date'] = df["date"].fillna(pd.to_datetime(df["ti"]))
 
-            df.dropna(inplace=True)
+            # df.dropna(inplace=True)
             df.drop_duplicates(subset="ti", inplace=True)
             df.sort_values(by=["ti"], inplace=True, ascending=True)
             df.set_index("ti", inplace=True)
@@ -255,7 +273,9 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
                     "o": "first",
                     "h": "max",
                     "l": "min",
-                    "c": "last"
+                    "c": "last",
+                    "v": "sum",
+                    "oi": "sum",
                 })
 
             else:
@@ -264,7 +284,9 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
                     {"o": "first",
                      "h": "max",
                      "l": "min",
-                     "c": "last"}
+                     "c": "last",
+                     "v": "sum",
+                     "oi": "sum", }
                 )
 
             df_resample.index = (df_resample.index.values.astype(np.int64) //
