@@ -31,7 +31,7 @@ def connectToMongo():
     return conn
 
 
-def getFnoHistData(symbol, timestamp):
+def getFnoHistData(symbol, timestamp, conn=None):
     """
     Retrieves historical data for a given Fno symbol or Indices symbol and timestamp from MongoDB collection.
 
@@ -45,7 +45,8 @@ def getFnoHistData(symbol, timestamp):
     """
 
     try:
-        conn = connectToMongo()
+        if conn is None:
+            conn = connectToMongo()
 
         db = conn["OHLC_MINUTE_1_New"]
         collection = db.Data
@@ -65,7 +66,7 @@ def getFnoHistData(symbol, timestamp):
         raise Exception(e)
 
 
-def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
+def getFnoBacktestData(symbol, startDateTime, endDateTime, interval, conn=None):
     """
     Retrieves backtest data i.e. range of data for a given Fno symbol or Indices symbol, start and end datetime, and interval.
 
@@ -95,7 +96,8 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
             raise Exception(
                 "startDateTime or endDateTime is not a timestamp(float or int) or datetime object")
 
-        conn = connectToMongo()
+        if conn is None:
+            conn = connectToMongo()
 
         if interval[-1:] == "D":
             db = conn["OHLC_DAY_1"]
@@ -167,7 +169,7 @@ def getFnoBacktestData(symbol, startDateTime, endDateTime, interval):
         raise Exception(e)
 
 
-def getEquityHistData(symbol, timestamp):
+def getEquityHistData(symbol, timestamp, conn=None):
     """
     Retrieves 1-minute historical data for a given equity symbol and timestamp from MongoDB collection.
 
@@ -180,7 +182,8 @@ def getEquityHistData(symbol, timestamp):
         dict: A dictionary containing historical data if found, otherwise None.
     """
     try:
-        conn = connectToMongo()
+        if conn is None:
+            conn = connectToMongo()
 
         db = conn["STOCK_MINUTE_1"]
         collection = db.Data
@@ -201,7 +204,7 @@ def getEquityHistData(symbol, timestamp):
         raise Exception(e)
 
 
-def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
+def getEquityBacktestData(symbol, startDateTime, endDateTime, interval, conn=None):
     """
     Retrieves backtest data i.e. range of data for a given equity symbol, start and end datetime, and interval.
 
@@ -232,7 +235,8 @@ def getEquityBacktestData(symbol, startDateTime, endDateTime, interval):
                 "startDateTime or endDateTime is not a timestamp(float or int) or datetime object"
             )
 
-        conn = connectToMongo()
+        if conn is None:
+            conn = connectToMongo()
 
         if interval[-1:] == "D":
             db = conn["STOCK_DAY_1"]

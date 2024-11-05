@@ -3,7 +3,7 @@ from datetime import datetime
 from backtestTools.histData import connectToMongo
 
 
-def getExpiryData(date, sym):
+def getExpiryData(date, sym, conn=None):
     """
     Retrieves expiry data for a given date and symbol from MongoDB collections.
 
@@ -29,7 +29,8 @@ def getExpiryData(date, sym):
 
         expiryDict = None
 
-        conn = connectToMongo()
+        if conn is None:
+            conn = connectToMongo()
 
         db = conn["FNO_Expiry"]
         collection = db["Data"]
