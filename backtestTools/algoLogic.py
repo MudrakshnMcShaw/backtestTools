@@ -60,7 +60,7 @@ class baseAlgoLogic:
         self.strategyName = strategyName
         self.version = version
 
-        self.conn = None
+        self.conn = connectToMongo()
         self.timeData = 0
         self.humanTime = datetime.fromtimestamp(0)
 
@@ -137,7 +137,11 @@ class baseAlgoLogic:
 
             extraColDict (Dictionary, optional): Additional columns to be included in the trade entry.
         """
-        index = len(self.openPnl)
+        if self.openPnl.empty:
+            index = 0
+        else:
+            index = self.openPnl.index[-1] + 1
+
         self.openPnl.at[index, "EntryTime"] = self.humanTime
         self.openPnl.at[index, "Symbol"] = symbol
         self.openPnl.at[index, "EntryPrice"] = entryPrice
@@ -145,6 +149,7 @@ class baseAlgoLogic:
         self.openPnl.at[index, "Quantity"] = quantity
         self.openPnl.at[index,
                         "PositionStatus"] = 1 if positionStatus == "BUY" else -1
+        self.openPnl.at[index, "Pnl"] = 0
 
         if extraColDict:
             for key, value in extraColDict.items():
@@ -259,18 +264,6 @@ class optAlgoLogic(baseAlgoLogic):
         super().__init__(devName, strategyName, version)
         self.symbolDataCache = {}
         self.expiryDataCache = {}
-
-    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
-        super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-        self.openPnl.to_csv(
-            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-
-    def exitOrder(self, index, exitType, exitPrice=None):
-        super().exitOrder(index, exitType, exitPrice)
-        self.openPnl.to_csv(
-            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-        self.closedPnl.to_csv(
-            f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
 
     def getCallSym(self, date, baseSym, indexPrice, expiry=None, otmFactor=0, strikeDist=None, conn=None):
         """
@@ -481,22 +474,22 @@ class optIntraDayAlgoLogic(optAlgoLogic):
     Attributes:
         Inherits all attributes and functions from the optAlgoLogic class.
     """
-    pass
 
-    # def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
-    #     super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
-    #     )
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
+        if saveCsv:
+            self.openPnl.to_csv(
+                f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
+            )
 
-    # def exitOrder(self, index, exitType, exitPrice=None):
-    #     super().exitOrder(index, exitType, exitPrice)
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
-    #     )
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}{self.humanTime.date()}_closePnl.csv"
-    #     )
+    def exitOrder(self, index, exitType, exitPrice=None):
+        super().exitOrder(index, exitType, exitPrice)
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
+        )
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}{self.humanTime.date()}_closePnl.csv"
+        )
 
     # def pnlCalculator(self):
     #     super().pnlCalculator()
@@ -516,20 +509,19 @@ class optOverNightAlgoLogic(optAlgoLogic):
     Attributes:
         Inherits all attributes and functions from the optAlgoLogic class.
     """
-    pass
 
-    # def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
-    #     super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
+        if saveCsv:
+            self.openPnl.to_csv(
+                f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
 
-    # def exitOrder(self, index, exitType, exitPrice=None):
-    #     super().exitOrder(index, exitType, exitPrice)
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
-
+    def exitOrder(self, index, exitType, exitPrice=None):
+        super().exitOrder(index, exitType, exitPrice)
+        self.openPnl.to_csv(
+            f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
+        self.closedPnl.to_csv(
+            f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
     # def pnlCalculator(self):
     #     super().pnlCalculator()
     #     self.openPnl.to_csv(
@@ -578,16 +570,15 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
         )
         self.strategyLogger.propagate = False
 
-    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-
-        self.openPnl.to_csv(
-            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
-        )
+        if saveCsv:
+            self.openPnl.to_csv(
+                f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
+            )
 
     def exitOrder(self, index, exitType, exitPrice=None):
         super().exitOrder(index, exitType, exitPrice)
-
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
         )
@@ -640,41 +631,36 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
 
         self.fileDir = fileDir
 
-        # self.strategyLogger = setup_logger(
-        #     "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}/backTest.log")
-        # self.strategyLogger.propagate = False
-
         self.strategyLogger = setup_logger(
-            "strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_log.log")
+            f"{self.stockName}_{self.humanTime.date()}_strategyLogger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
         self.strategyLogger.propagate = False
 
     def init_logger(self):
         self.strategyLogger = setup_logger(
-            f"{self.stockName}_logger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_log.log")
+            f"{self.stockName}_{self.humanTime.date()}_logger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
         self.strategyLogger.propagate = False
 
-    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
+    def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
-
-        self.openPnl.to_csv(
-            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
-        )
+        if saveCsv:
+            self.openPnl.to_csv(
+                f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
+            )
 
     def exitOrder(self, index, exitType, exitPrice=None):
         super().exitOrder(index, exitType, exitPrice)
-
         self.openPnl.to_csv(
-            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
+            f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
         )
         self.closedPnl.to_csv(
-            f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_closedPnl.csv"
+            f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_{self.humanTime.date()}_closedPnl.csv"
         )
 
     # def pnlCalculator(self):
     #     super().pnlCalculator()
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
-    #     )
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_{self.humanTime.date()}_closedPnl.csv"
-    #     )
+        # self.openPnl.to_csv(
+        #     f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
+        # )
+        # self.closedPnl.to_csv(
+        #     f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_{self.humanTime.date()}_closedPnl.csv"
+        # )

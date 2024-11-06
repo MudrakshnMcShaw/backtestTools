@@ -397,8 +397,7 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
         closedPnl["ExitTime"] = pd.to_datetime(closedPnl["ExitTime"])
 
     startDatetime = closedPnl['Key'].min().replace(hour=9, minute=15)
-    endDatetime = (closedPnl['ExitTime'].max(
-    )+timedelta(days=3)).replace(hour=15, minute=29)
+    endDatetime = (closedPnl['ExitTime'].max()).replace(hour=15, minute=29)
 
     mtm_df = pd.DataFrame()
 
@@ -425,19 +424,30 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
     i = 0
     total_rows = len(closedPnl)
     for index, row in closedPnl.iterrows():
-        # print(row['Key'])
-
         tradeStart = closedPnl.at[index, 'Key'] - \
             timedelta(hours=5, minutes=30)
         tradeEnd = closedPnl.at[index, 'ExitTime'] - \
             timedelta(hours=5, minutes=30)+timedelta(days=1)
 
-        ohlc_df = getFnoBacktestData(
-            row["Symbol"], tradeStart, tradeEnd, "T", conn=conn)
+        if equityMarket:
+            ohlc_df = getEquityBacktestData(
+                row["Symbol"], tradeStart, tradeEnd, "T", conn=conn)
+        else:
+            ohlc_df = getFnoBacktestData(
+                row["Symbol"], tradeStart, tradeEnd, "T", conn=conn)
 
-        if ohlc_df.at[ohlc_df.index[-1], 'datetime'].date() == row['ExitTime'].date():
+        if ohlc_df is None:
+            raise Exception(f"{row['Symbol']} not found in database.")
+
+        try:
+            # if ohlc_df.at[ohlc_df.index[-1], 'datetime'].date() == row['ExitTime'].date():
             last_index = ohlc_df.index[-1]
             next_index = mtm_df[mtm_df.index > last_index].index[0]
+            ohlc_df.loc[next_index] = 0
+            ohlc_df.loc[next_index, 'ti'] = next_index
+            ohlc_df.loc[next_index, 'datetime'] = mtm_df.at[next_index, "Date"]
+        except Exception as e:
+            next_index = last_index + 60
             ohlc_df.loc[next_index] = 0
             ohlc_df.loc[next_index, 'ti'] = next_index
             ohlc_df.loc[next_index, 'datetime'] = pd.to_datetime(
@@ -494,8 +504,8 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
             "Date": "first",
             "OpenTrades": "max",
             "CapitalInvested": "max",
-            "CumulativePnl": "first",
-            "mtmPnl": "first",
+            "CumulativePnl": "last",
+            "mtmPnl": "last",
         }
     )
     mtm_df.dropna(inplace=True)
@@ -503,11 +513,15 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
     mtm_df["Peak"] = mtm_df["CumulativePnl"].cummax()
     mtm_df["Drawdown"] = mtm_df["CumulativePnl"] - mtm_df["Peak"]
 
-    dayEndSeries = mtm_df.groupby(mtm_df['Date'].dt.date)[
-        'CumulativePnl'].last()
-    prevDayEndSeries = dayEndSeries.shift(1)
+    prevDayEndSeries = mtm_df.groupby(mtm_df['Date'].dt.date)[
+        'CumulativePnl'].last().shift(1)
     mtm_df['prevDayEndPnl'] = mtm_df['Date'].dt.date.map(prevDayEndSeries)
-    mtm_df['mtmPnl'] = mtm_df['CumulativePnl'] - mtm_df['prevDayEndPnl']
+    mtm_df['mtmPnl'] = mtm_df.loc[mtm_df['Date'].dt.date ==
+                                  mtm_df['Date'].dt.date.min(), 'CumulativePnl']
+    mask = mtm_df['Date'].dt.date != mtm_df['Date'].dt.date.min()
+    mtm_df.loc[mask, 'mtmPnl'] = mtm_df.loc[mask,
+                                            'CumulativePnl'] - mtm_df.loc[mask, 'prevDayEndPnl']
+
     del mtm_df['prevDayEndPnl']
 
     mtm_df.fillna(0, inplace=True)
