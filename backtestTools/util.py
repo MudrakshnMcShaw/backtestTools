@@ -437,8 +437,9 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
                 row["Symbol"], tradeStart, tradeEnd, "T", conn=conn)
 
         if ohlc_df is None:
-            raise Exception(f"{row['Symbol']} not found in database.")
-
+            print(f"{row['Symbol']} not found in database.")
+            continue
+        
         try:
             # if ohlc_df.at[ohlc_df.index[-1], 'datetime'].date() == row['ExitTime'].date():
             last_index = ohlc_df.index[-1]
