@@ -399,6 +399,8 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
     startDatetime = closedPnl['Key'].min().replace(hour=9, minute=15)
     endDatetime = (closedPnl['ExitTime'].max()).replace(hour=15, minute=29)
 
+    closedPnl = closedPnl[closedPnl['EntryPrice']!= 0]
+
     mtm_df = pd.DataFrame()
 
     mtm_df["Date"] = pd.date_range(
@@ -439,7 +441,7 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
         if ohlc_df is None:
             print(f"{row['Symbol']} not found in database.")
             continue
-        
+
         try:
             # if ohlc_df.at[ohlc_df.index[-1], 'datetime'].date() == row['ExitTime'].date():
             last_index = ohlc_df.index[-1]
@@ -448,15 +450,14 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
             ohlc_df.loc[next_index, 'ti'] = next_index
             ohlc_df.loc[next_index, 'datetime'] = mtm_df.at[next_index, "Date"]
         except Exception as e:
-            next_index = last_index + 60
-            ohlc_df.loc[next_index] = 0
-            ohlc_df.loc[next_index, 'ti'] = next_index
-            ohlc_df.loc[next_index, 'datetime'] = pd.to_datetime(
-                next_index, unit='s')
+            pass
 
         ohlc_df['openTrade'] = 1
         ohlc_df['pnl'] = ((ohlc_df['o'] - row["EntryPrice"])
                           * row["Quantity"] * row["PositionStatus"])
+
+        if ohlc_df.iloc[-1]['pnl'] != closedPnl['Pnl'].iloc[0]:
+                ohlc_df.at[ohlc_df.index[-1], 'pnl'] = row['Pnl']
 
         if row["PositionStatus"] == 1:
             ohlc_df['buyPosition'] = 1
@@ -492,6 +493,11 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
         progress = (i + 1) / total_rows * 100
         print(f"Progress: {progress:.2f}%", end="\r")
         i += 1
+
+    # if int(mtm_df['CumulativePnl'].iloc[-1]) == int(closedPnl['Pnl'].sum()):
+    #     print(f'{file} Sucess')
+    # else:
+    #     print(f'{file}Error')
 
     mtm_df['Spread'] = np.minimum(
         mtm_df['BuyPosition'], mtm_df['SellPosition'])
