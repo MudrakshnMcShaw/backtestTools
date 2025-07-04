@@ -482,7 +482,6 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
         merged_df = pd.merge(
             mtm_df, ohlc_df[['openTrade', 'pnl', 'buyPosition', 'sellPosition', 'buyMargin']],  how="outer", left_index=True, right_index=True)
         merged_df.ffill(inplace=True)
-        # merged_df.fillna(method='ffill', inplace=True)
         merged_df.fillna(0, inplace=True)
 
         mtm_df['OpenTrades'] += merged_df['openTrade']
