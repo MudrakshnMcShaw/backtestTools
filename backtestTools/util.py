@@ -403,8 +403,11 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
 
     mtm_df = pd.DataFrame()
 
-    mtm_df["Date"] = pd.date_range(
-        start=startDatetime, end=endDatetime, freq="1T")
+    # mtm_df["Date"] = pd.date_range(
+    #     start=startDatetime, end=endDatetime, freq="1T")
+    
+    index_df = getFnoBacktestData("NIFTY 50", startDatetime, endDatetime, "1min", conn=conn)
+    mtm_df["Date"] = pd.to_datetime(index_df["datetime"])
     mtm_df['Index'] = mtm_df['Date']
     mtm_df.set_index("Index", inplace=True)
 
