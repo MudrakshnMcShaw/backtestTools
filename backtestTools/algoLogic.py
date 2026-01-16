@@ -1,3 +1,21 @@
+"""\
+Backtest Algorithm Logic Module.
+
+This module provides foundational classes for implementing algorithmic trading strategies.
+It includes base logic for managing trades, calculating profit and loss (PnL), handling data
+storage, and specialized classes for options trading (both intraday and overnight) and equity
+trading strategies. The module integrates with MongoDB for data retrieval and supports both
+F&O (Futures and Options) and equity instruments.
+
+Classes:
+    baseAlgoLogic: Base class for all trading algorithms with trade management and PnL tracking.
+    optAlgoLogic: Options-specific trading logic with strike price and expiry management.
+    optIntraDayAlgoLogic: Specialized options trading for intraday strategies.
+    optOverNightAlgoLogic: Specialized options trading for overnight strategies.
+    equityOverNightAlgoLogic: Specialized equity trading for overnight strategies.
+    equityIntradayAlgoLogic: Specialized equity trading for intraday strategies.
+"""
+
 import os
 import glob
 import pandas as pd
@@ -8,52 +26,43 @@ from backtestTools.util import setup_logger
 
 class baseAlgoLogic:
     """
-    The `baseAlgoLogic` class is a foundational class for implementing algorithmic trading logic.
-    It provides methods for managing trades, calculating profit and loss (PnL), and handling data storage.
-    This class serves as a base for more specific algorithmic trading strategies.
-
-        Attributes:
-            conn (MongoClient): Stores a MongoDB connection object. Initially set to None.
-
-            timeData (float): Stores timestamp
-
-            humanTime (datetime): Stores python datetime object
-
-            unrealisedPnl (int): Stores Unrealized Profit and Loss
-
-            realisedPnl (int): Stores Realized Profit and Loss
-
-            netPnl (int): Stores Net Profit and Loss
-
-            openPnl (DataFrame): Dataframe that stores open trades
-
-            closedPnl (DataFrame): Dataframe that stores closed trades
-
-            fileDir (Dictionary): Dictionary containing several file directories for storing files
-
-            > backtestResultsStrategyUid - Backtest Results Folder
-
-            > backtestResultsOpenPnl: File directory to store openPnl csv
-
-            > backtestResultsClosePnl: File directory to store closedPnl csv
-
-            > backtestResultsCandleData: File directory to store OHLC Data csv
-
-            > backtestResultsStrategyLogs: File directory to store strategy logs
-
-            strategyLogger (logging): Logger to log relevant info
-
+    Base class for implementing algorithmic trading logic.
+    
+    Provides methods for managing trades, calculating profit and loss (PnL), and handling data storage.
+    This class serves as the foundation for all specific algorithmic trading strategies (options, equity, etc.).
+    It manages trade entries and exits, tracks both realized and unrealized PnL, and persists results to CSV files.
+    
+    Attributes:
+        devName (str): Developer name associated with the strategy.
+        strategyName (str): Name of the trading strategy.
+        version (str): Version identifier for the strategy.
+        conn (MongoClient): MongoDB connection object for data retrieval. Initialized in __init__.
+        timeData (float): Current timestamp in epoch format.
+        humanTime (datetime): Current datetime as a Python datetime object.
+        unrealizedPnl (float): Profit/loss from currently open positions.
+        realizedPnl (float): Profit/loss from closed positions.
+        netPnl (float): Total PnL combining realized and unrealized components.
+        openPnl (pd.DataFrame): DataFrame storing open trade positions with columns:
+            EntryTime, Symbol, EntryPrice, CurrentPrice, Quantity, PositionStatus, Pnl.
+        closedPnl (pd.DataFrame): DataFrame storing closed trade positions with columns:
+            Key, ExitTime, Symbol, EntryPrice, ExitPrice, Quantity, PositionStatus, Pnl, ExitType.
+        fileDir (dict): Dictionary containing file paths for result storage.
+        fileDirUid (int): Unique identifier for this backtest run.
+        strategyLogger (logging.Logger): Logger instance for strategy execution logs.
     """
 
     def __init__(self, devName, strategyName, version):
         """
-        This method initializes an instance of the `baseAlgoLogic` class.
-
-            Parameters:
-                devName (string): Developer Name
-                strategyName (string): Strategy Name
-                version (string): Version Name
-
+        Initialize a baseAlgoLogic instance with strategy metadata and result directories.
+        
+        Creates directory structure for storing backtest results, initializes DataFrames for trade tracking,
+        establishes MongoDB connection, and sets up logging. Automatically generates unique UIDs for each
+        backtest run to avoid result overwrites.
+        
+        Parameters:
+            devName (str): Developer name associated with the strategy.
+            strategyName (str): Name of the trading strategy.
+            version (str): Version identifier for the strategy.
         """
 
         self.devName = devName
@@ -113,10 +122,16 @@ class baseAlgoLogic:
 
     def addColumnsToOpenPnlDf(self, columns):
         """
-        Creates multiple new column in openPnl Dataframe
-
+        Add multiple new columns to the openPnl DataFrame.
+        
+        Allows dynamic extension of the openPnl DataFrame schema to store strategy-specific trade attributes
+        beyond the default columns.
+        
         Parameters:
-            columns (list): List of column names(string) to be added.
+            columns (list): List of column names (strings) to be added to the DataFrame.
+        
+        Returns:
+            None
         """
 
         for col in columns:
@@ -124,18 +139,21 @@ class baseAlgoLogic:
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None):
         """
-        Executes an entry order for a trade and adds it to the `openPnl` DataFrame.
-
+        Record a trade entry order and add it to the openPnl DataFrame.
+        
+        Creates a new row in the openPnl DataFrame with the entry details. Converts BUY/SELL position
+        status to numeric values (+1/-1) for easier PnL calculations. Logs the entry order execution.
+        
         Parameters:
-            entryPrice (float): List of column names(string) to be added.
-
-            symbol (string): Symbol of the asset being traded.
-
-            quantity (int): Quantity of the asset being traded.
-
-            positionStatus (string): Position status, either "BUY" or "SELL".
-
-            extraColDict (Dictionary, optional): Additional columns to be included in the trade entry.
+            entryPrice (float): Entry price of the asset.
+            symbol (str): Trading symbol/ticker of the asset.
+            quantity (int): Number of units/contracts being traded.
+            positionStatus (str): Position direction, either "BUY" or "SELL".
+            extraColDict (dict, optional): Dictionary of additional custom columns to store with the trade.
+                Default is None.
+        
+        Returns:
+            None
         """
         if self.openPnl.empty:
             index = 0
@@ -161,14 +179,20 @@ class baseAlgoLogic:
 
     def exitOrder(self, index, exitType, exitPrice=None):
         """
-        Executes an exit order for a trade and moves it from the `openPnl` DataFrame to the `closedPnl` DataFrame.
-
+        Record a trade exit order and move it from openPnl to closedPnl DataFrame.
+        
+        Retrieves the trade from openPnl at the specified index, calculates realized PnL,
+        and transfers the complete trade record to closedPnl with exit details. Logs the exit
+        order execution.
+        
         Parameters:
-            index (int): Index of the trade in the `openPnl` DataFrame.
-
-            exitType (string): Type of exit order.
-
-            exitPrice (float, optional): Exit price of the trade.
+            index (int): Index of the trade in the openPnl DataFrame to be closed.
+            exitType (str): Classification of the exit (e.g., "StopLoss", "TakeProfit", "Manual").
+            exitPrice (float, optional): Exit price of the trade. If None, uses CurrentPrice from openPnl.
+                Default is None.
+        
+        Returns:
+            None
         """
         trade_to_close = self.openPnl.loc[index].to_frame().T
 
@@ -190,7 +214,14 @@ class baseAlgoLogic:
 
     def pnlCalculator(self):
         """
-        Calculates the profit and loss (PnL) for both open and closed trades.
+        Calculate and update realized, unrealized, and net profit and loss.
+        
+        Iterates through open trades to compute unrealized PnL based on current prices,
+        sums realized PnL from closed trades, and computes total net PnL. Updates instance
+        attributes unrealizedPnl, realizedPnl, and netPnl accordingly.
+        
+        Returns:
+            None
         """
         # Calculate unrealized PnL from open trades
         if not self.openPnl.empty:
@@ -211,10 +242,15 @@ class baseAlgoLogic:
 
     def combinePnlCsv(self):
         """
-        Combines and saves the data of open and closed trades to CSV files.
-
-        Return:
-            closedPnl (DataFrame): Combined DataFrame of closed trades.
+        Aggregate all openPnl and closedPnl CSV files and save consolidated results.
+        
+        Reads all individual CSV files from the openPnl and closedPnl directories,
+        concatenates them into single DataFrames, removes index columns, sorts by timestamp,
+        and saves the aggregated results as consolidated CSV files.
+        
+        Returns:
+            pd.DataFrame: Combined DataFrame of all closed trades with columns:
+                Key, ExitTime, Symbol, EntryPrice, ExitPrice, Quantity, PositionStatus, Pnl, ExitType.
         """
         openPnl = pd.DataFrame(columns=[
                                "EntryTime", "Symbol", "EntryPrice", "CurrentPrice", "Quantity", "PositionStatus", "Pnl"])
@@ -253,11 +289,20 @@ class baseAlgoLogic:
 
 class optAlgoLogic(baseAlgoLogic):
     """
-    Options Algo Logic Class
-    Inherits from baseAlgoLogic class.
-
+    Options-specific algorithmic trading logic.
+    
+    Extends baseAlgoLogic with functionality for options trading including dynamic strike price
+    calculation, expiry management, and caching mechanisms for efficient data retrieval. Supports
+    both call and put option symbol generation based on current market prices and technical parameters.
+    
+    Inherits:
+        All attributes and methods from baseAlgoLogic.
+    
     Attributes:
-        Inherits all attributes and functions from the baseAlgoLogic class.
+        symbolDataCache (dict): In-memory cache for F&O symbol historical data keyed by symbol.
+            Automatically evicts expired contracts to manage memory usage.
+        expiryDataCache (dict): In-memory cache for option expiry information keyed by base symbol.
+            Indexed by datetime for efficient lookups.
     """
 
     def __init__(self, devName, strategyName, version):
@@ -267,19 +312,28 @@ class optAlgoLogic(baseAlgoLogic):
 
     def getCallSym(self, date, baseSym, indexPrice, expiry=None, otmFactor=0, strikeDist=None, conn=None):
         """
-        Creates the call symbol based on provided parameters.
-
+        Generate a call option symbol with strike price based on current index price.
+        
+        Calculates the at-the-money (ATM) strike by rounding the index price to the nearest
+        strike distance, then applies the OTM factor to generate out-of-the-money strikes.
+        Automatically determines the nearest available expiry if not specified.
+        
         Parameters:
-            date (datetime or float): Date at which the expiry date needs to be decided.
-
-            baseSym (string): Base symbol for the option.
-
-            indexPrice (float): Current price of the baseSym.
-
-            otmFactor (int, optional): Factor for calculating the strike price. Default is 0.
-
+            date (datetime or float): Reference date for determining option expiry.
+                Can be datetime object or epoch timestamp (int/float).
+            baseSym (str): Base symbol of the underlying asset (e.g., "NIFTY50", "BANKNIFTY").
+            indexPrice (float): Current market price of the underlying asset.
+            expiry (str, optional): Specific expiry date string to use (e.g., "27MAR25").
+                If None, uses the nearest available expiry. Default is None.
+            otmFactor (int, optional): Number of strikes above ATM to generate.
+                E.g., otmFactor=1 generates strike at ATM + strikeDistance. Default is 0 (ATM).
+            strikeDist (float, optional): Strike price interval (e.g., 100 for NIFTY). 
+                If None, retrieved from expiry data. Default is None.
+            conn (MongoClient, optional): MongoDB connection for data retrieval.
+                If None, a new connection is established. Default is None.
+        
         Returns:
-            callSym (string): Call symbol generated based on the parameters.
+            str: Call option symbol with expiry and strike (e.g., "NIFTY27MAR2526000CE").
         """
         if isinstance(date, datetime):
             dateEpoch = date.timestamp()
@@ -315,19 +369,28 @@ class optAlgoLogic(baseAlgoLogic):
 
     def getPutSym(self, date, baseSym, indexPrice, expiry=None, otmFactor=0, strikeDist=None, conn=None):
         """
-        Creates the put symbol based on provided parameters.
-
+        Generate a put option symbol with strike price based on current index price.
+        
+        Calculates the at-the-money (ATM) strike by rounding the index price to the nearest
+        strike distance, then applies the OTM factor to generate out-of-the-money strikes below ATM.
+        Automatically determines the nearest available expiry if not specified.
+        
         Parameters:
-            date (datetime or float): Date at which the expiry date needs to be decided.
-
-            baseSym (string): Base symbol for the option.
-
-            indexPrice (float): Current price of the baseSym.
-
-            otmFactor (int, optional): Factor for calculating the strike price. Default is 0.
-
+            date (datetime or float): Reference date for determining option expiry.
+                Can be datetime object or epoch timestamp (int/float).
+            baseSym (str): Base symbol of the underlying asset (e.g., "NIFTY50", "BANKNIFTY").
+            indexPrice (float): Current market price of the underlying asset.
+            expiry (str, optional): Specific expiry date string to use (e.g., "27MAR25").
+                If None, uses the nearest available expiry. Default is None.
+            otmFactor (int, optional): Number of strikes below ATM to generate.
+                E.g., otmFactor=1 generates strike at ATM - strikeDistance. Default is 0 (ATM).
+            strikeDist (float, optional): Strike price interval (e.g., 100 for NIFTY).
+                If None, retrieved from expiry data. Default is None.
+            conn (MongoClient, optional): MongoDB connection for data retrieval.
+                If None, a new connection is established. Default is None.
+        
         Returns:
-            putSym (string): Put symbol generated based on the parameters.
+            str: Put option symbol with expiry and strike (e.g., "NIFTY27MAR2526000PE").
         """
         if isinstance(date, datetime):
             dateEpoch = date.timestamp()
@@ -363,18 +426,22 @@ class optAlgoLogic(baseAlgoLogic):
 
     def fetchAndCacheFnoHistData(self, symbol, timestamp, maxCacheSize=100, conn=None):
         """
-        Fetches and caches historical data for a given F&O symbol and timestamp.
-
+        Fetch and cache F&O historical data with automatic cache eviction of expired contracts.
+        
+        Retrieves 1-minute OHLC data for the specified F&O symbol at the given timestamp.
+        Maintains an in-memory cache to avoid redundant database queries. Automatically removes
+        expired option contracts from cache when the current timeData exceeds their expiry time.
+        
         Parameters:
-            symbol (str): The F&O symbol for which data needs to be fetched.
-
-            timestamp (float): The timestamp for the data request.
-
-            maxCacheSize (int, optional): Maximum size of the cache. Default is 50.
-
+            symbol (str): F&O symbol to fetch data for (e.g., "NIFTY27MAR2526000CE").
+            timestamp (float): Epoch timestamp for the data request.
+            maxCacheSize (int, optional): Maximum number of symbols to keep in cache before eviction.
+                Default is 100.
+            conn (MongoClient, optional): MongoDB connection for data retrieval.
+                If None, uses the instance connection. Default is None.
+        
         Returns:
-            DataFrame: Historical data for the specified F&O symbol and timestamp.
-
+            pd.Series: OHLC and other data at the specified timestamp for the symbol.
         """
         # print(len(self.symbolDataCache))
         if len(self.symbolDataCache) > maxCacheSize:
@@ -408,17 +475,27 @@ class optAlgoLogic(baseAlgoLogic):
 
     def fetchAndCacheExpiryData(self, date, sym, conn=None):
         """
-        Fetches and caches expiry data for a given date and symbol from MongoDB collections.
-        The fetched data is cached in the `expiryDataCache` attribute of the class instance.
-
+        Fetch and cache option expiry metadata (current expiry, strike distance, etc.).
+        
+        Retrieves expiry-related information for a given base symbol and date from MongoDB FNO_Expiry
+        collection. Caches the full expiry dataset indexed by date for efficient subsequent lookups.
+        Uses binary search to find the nearest available expiry date for a given timestamp.
+        
         Parameters:
-            date (datetime or float): The date for which expiry data is requested.
-                It can be either a datetime object or a timestamp in float format.
-
-            sym (string): The base symbol for which expiry data is requested.
-
+            date (datetime or float): Reference date for expiry lookup. Can be datetime object
+                or epoch timestamp (float). Time is normalized to 15:30 (market close) for consistency.
+            sym (str): Base symbol for which expiry data is requested (e.g., "NIFTY50", "BANKNIFTY").
+            conn (MongoClient, optional): MongoDB connection for data retrieval.
+                If None, a new connection is established. Default is None.
+        
         Returns:
-            dictionary: A dictionary containing expiry data if found, otherwise None.
+            dict: Dictionary containing expiry metadata including:
+                - CurrentExpiry: Nearest available expiry date
+                - StrikeDist: Strike price interval for this symbol
+                - Other expiry-specific fields from the database
+        
+        Raises:
+            Exception: If date is not a datetime object or float timestamp, or on database errors.
         """
         try:
             if isinstance(date, datetime):
@@ -468,14 +545,35 @@ class optAlgoLogic(baseAlgoLogic):
 
 class optIntraDayAlgoLogic(optAlgoLogic):
     """
-    Options Intraday Algo Logic Class
-    Inherits from optAlgoLogic class.
-
-    Attributes:
-        Inherits all attributes and functions from the optAlgoLogic class.
+    Options intraday trading logic with daily CSV snapshot persistence.
+    
+    Extends optAlgoLogic specifically for intraday options trading strategies.
+    Automatically saves open and closed trade snapshots to CSV files with daily filenames,
+    enabling easy tracking of trading activity across multiple trading days.
+    
+    Inherits:
+        All attributes and methods from optAlgoLogic.
     """
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        """
+        Record an options entry order with optional daily CSV persistence.
+        
+        Calls parent entryOrder method to record the trade, then optionally saves the current
+        openPnl DataFrame to a date-stamped CSV file for daily tracking.
+        
+        Parameters:
+            entryPrice (float): Entry price of the option contract.
+            symbol (str): Option symbol (e.g., "NIFTY27MAR2526000CE").
+            quantity (int): Number of contracts.
+            positionStatus (str): Position direction ("BUY" or "SELL").
+            extraColDict (dict, optional): Additional custom columns for the trade. Default is None.
+            saveCsv (bool, optional): If True, saves openPnl to CSV with current date in filename.
+                Default is False.
+        
+        Returns:
+            None
+        """
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         if saveCsv:
             self.openPnl.to_csv(
@@ -483,6 +581,20 @@ class optIntraDayAlgoLogic(optAlgoLogic):
             )
 
     def exitOrder(self, index, exitType, exitPrice=None):
+        """
+        Record an options exit order and save updated trade snapshots to daily CSV files.
+        
+        Calls parent exitOrder method to process the exit, then saves both openPnl and closedPnl
+        DataFrames to date-stamped CSV files for daily record keeping.
+        
+        Parameters:
+            index (int): Index of the trade in openPnl to close.
+            exitType (str): Classification of the exit action.
+            exitPrice (float, optional): Exit price. If None, uses CurrentPrice. Default is None.
+        
+        Returns:
+            None
+        """
         super().exitOrder(index, exitType, exitPrice)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
@@ -491,62 +603,93 @@ class optIntraDayAlgoLogic(optAlgoLogic):
             f"{self.fileDir['backtestResultsClosePnl']}{self.humanTime.date()}_closePnl.csv"
         )
 
-    # def pnlCalculator(self):
-    #     super().pnlCalculator()
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}{self.humanTime.date()}_openPnl.csv"
-    #     )
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}{self.humanTime.date()}_closePnl.csv"
-    #     )
-
 
 class optOverNightAlgoLogic(optAlgoLogic):
     """
-    Options Overnight Algo Logic Class
-    Inherits from optAlgoLogic class.
-
-    Attributes:
-        Inherits all attributes and functions from the optAlgoLogic class.
+    Options overnight trading logic with persistent CSV storage across sessions.
+    
+    Extends optAlgoLogic specifically for overnight options trading strategies that span
+    multiple trading days. Saves trade snapshots to single CSV files (not date-stamped)
+    that persist and accumulate across trading sessions.
+    
+    Inherits:
+        All attributes and methods from optAlgoLogic.
     """
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        """
+        Record an options entry order with optional persistent CSV storage.
+        
+        Calls parent entryOrder method to record the trade, then optionally saves the current
+        openPnl DataFrame to a persistent CSV file (without date stamp) that accumulates across sessions.
+        
+        Parameters:
+            entryPrice (float): Entry price of the option contract.
+            symbol (str): Option symbol (e.g., "NIFTY27MAR2526000CE").
+            quantity (int): Number of contracts.
+            positionStatus (str): Position direction ("BUY" or "SELL").
+            extraColDict (dict, optional): Additional custom columns for the trade. Default is None.
+            saveCsv (bool, optional): If True, saves openPnl to persistent CSV file.
+                Default is False.
+        
+        Returns:
+            None
+        """
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         if saveCsv:
             self.openPnl.to_csv(
                 f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
 
     def exitOrder(self, index, exitType, exitPrice=None):
+        """
+        Record an options exit order and update persistent CSV files.
+        
+        Calls parent exitOrder method to process the exit, then saves both openPnl and closedPnl
+        DataFrames to persistent CSV files (without date stamps) that accumulate across sessions.
+        
+        Parameters:
+            index (int): Index of the trade in openPnl to close.
+            exitType (str): Classification of the exit action.
+            exitPrice (float, optional): Exit price. If None, uses CurrentPrice. Default is None.
+        
+        Returns:
+            None
+        """
         super().exitOrder(index, exitType, exitPrice)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
         self.closedPnl.to_csv(
             f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
-    # def pnlCalculator(self):
-    #     super().pnlCalculator()
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}openPnl.csv")
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}closePnl.csv")
 
 
 class equityOverNightAlgoLogic(baseAlgoLogic):
     """
-    Equity Overnight Algo Logic Class
-    Inherits from baseAlgoLogic class.
-
+    Equity overnight trading logic with persistent position tracking.
+    
+    Extends baseAlgoLogic for equity trading strategies that span multiple days.
+    Manages open and closed positions with persistent CSV storage. Unlike intraday strategies,
+    uses non-dated filenames to accumulate position history across sessions.
+    
+    Inherits:
+        Core trade management methods from baseAlgoLogic.
+    
     Attributes:
-        Inherits all attributes and functions from the baseAlgoLogic class.
+        stockName (str): Name of the equity stock being traded.
     """
 
     def __init__(self, stockName, fileDir):
         """
-        Initializes an instance of the `equityOverNightAlgoLogic` class.
-
+        Initialize equityOverNightAlgoLogic with stock metadata and result directories.
+        
+        Sets up trade tracking DataFrames, file directories, and logging specific to overnight
+        equity trading. Unlike baseAlgoLogic, does not create subdirectory structure (uses provided fileDir).
+        
         Parameters:
-            stockName (string): Name of the stock for which the algorithm is designed.
-
-            fileDir (Dictionary): Dictionary containing file directories for storing files.
+            stockName (str): Name of the equity stock being traded.
+            fileDir (dict): Dictionary containing pre-configured file paths:
+                - backtestResultsOpenPnl: Directory for open position CSVs
+                - backtestResultsClosePnl: Directory for closed position CSVs
+                - backtestResultsStrategyLogs: Directory for log files
         """
         self.stockName = stockName
 
@@ -571,6 +714,24 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
         self.strategyLogger.propagate = False
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        """
+        Record an equity entry order with optional persistent CSV storage.
+        
+        Calls parent entryOrder method to record the trade, then optionally saves the current
+        openPnl DataFrame to a persistent CSV file with stock-name prefix for identification.
+        
+        Parameters:
+            entryPrice (float): Entry price of the equity.
+            symbol (str): Stock ticker symbol.
+            quantity (int): Number of shares.
+            positionStatus (str): Position direction ("BUY" or "SELL").
+            extraColDict (dict, optional): Additional custom columns for the trade. Default is None.
+            saveCsv (bool, optional): If True, saves openPnl to persistent CSV file.
+                Default is False.
+        
+        Returns:
+            None
+        """
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         if saveCsv:
             self.openPnl.to_csv(
@@ -578,6 +739,20 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
             )
 
     def exitOrder(self, index, exitType, exitPrice=None):
+        """
+        Record an equity exit order and update persistent CSV files.
+        
+        Calls parent exitOrder method to process the exit, then saves both openPnl and closedPnl
+        DataFrames to persistent CSV files with stock-name prefix for identification.
+        
+        Parameters:
+            index (int): Index of the trade in openPnl to close.
+            exitType (str): Classification of the exit action.
+            exitPrice (float, optional): Exit price. If None, uses CurrentPrice. Default is None.
+        
+        Returns:
+            None
+        """
         super().exitOrder(index, exitType, exitPrice)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
@@ -586,34 +761,37 @@ class equityOverNightAlgoLogic(baseAlgoLogic):
             f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_closedPnl.csv"
         )
 
-    # def pnlCalculator(self):
-    #     super().pnlCalculator()
-
-    #     self.openPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_openPnl.csv"
-    #     )
-    #     self.closedPnl.to_csv(
-    #         f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_closedPnl.csv"
-    #     )
-
 
 class equityIntradayAlgoLogic(baseAlgoLogic):
     """
-    Equity Intraday Algo Logic Class
-    Inherits from baseAlgoLogic class.
-
+    Equity intraday trading logic with daily position snapshots.
+    
+    Extends baseAlgoLogic for single-day equity trading strategies.
+    Automatically saves open and closed position snapshots to CSV files with daily filenames,
+    enabling easy tracking of intraday trading activity. Logger is initialized/updated for each
+    new trading day.
+    
+    Inherits:
+        Core trade management methods from baseAlgoLogic.
+    
     Attributes:
-        Inherits all attributes and functions from the baseAlgoLogic class.
+        stockName (str): Name of the equity stock being traded.
     """
 
     def __init__(self, stockName, fileDir):
         """
-        Initializes an instance of the `equityIntradayAlgoLogic` class.
-
+        Initialize equityIntradayAlgoLogic with stock metadata and result directories.
+        
+        Sets up trade tracking DataFrames, file directories, and logging specific to intraday
+        equity trading. Logger is initialized with date in the name and can be refreshed via
+        init_logger() when trading session moves to a new day.
+        
         Parameters:
-            stockName (string): Name of the stock for which the algorithm is designed.
-
-            fileDir (Dictionary): Dictionary containing file directories for storing files.
+            stockName (str): Name of the equity stock being traded.
+            fileDir (dict): Dictionary containing pre-configured file paths:
+                - backtestResultsOpenPnl: Directory for open position CSVs
+                - backtestResultsClosePnl: Directory for closed position CSVs
+                - backtestResultsStrategyLogs: Directory for log files
         """
         self.stockName = stockName
 
@@ -636,11 +814,38 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
         self.strategyLogger.propagate = False
 
     def init_logger(self):
+        """
+        Reinitialize the logger with current date in filename.
+        
+        Creates a new logger instance for a new trading day. Call this method when humanTime
+        changes to a new date to start a fresh log file.
+        
+        Returns:
+            None
+        """
         self.strategyLogger = setup_logger(
             f"{self.stockName}_{self.humanTime.date()}_logger", f"{self.fileDir['backtestResultsStrategyLogs']}{self.stockName}_{self.humanTime.date()}_log.log")
         self.strategyLogger.propagate = False
 
     def entryOrder(self, entryPrice, symbol, quantity, positionStatus, extraColDict=None, saveCsv=False):
+        """
+        Record an equity entry order with optional daily CSV persistence.
+        
+        Calls parent entryOrder method to record the trade, then optionally saves the current
+        openPnl DataFrame to a date-stamped CSV file for daily tracking.
+        
+        Parameters:
+            entryPrice (float): Entry price of the equity.
+            symbol (str): Stock ticker symbol.
+            quantity (int): Number of shares.
+            positionStatus (str): Position direction ("BUY" or "SELL").
+            extraColDict (dict, optional): Additional custom columns for the trade. Default is None.
+            saveCsv (bool, optional): If True, saves openPnl to CSV with current date in filename.
+                Default is False.
+        
+        Returns:
+            None
+        """
         super().entryOrder(entryPrice, symbol, quantity, positionStatus, extraColDict)
         if saveCsv:
             self.openPnl.to_csv(
@@ -648,6 +853,20 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
             )
 
     def exitOrder(self, index, exitType, exitPrice=None):
+        """
+        Record an equity exit order and save updated trade snapshots to daily CSV files.
+        
+        Calls parent exitOrder method to process the exit, then saves both openPnl and closedPnl
+        DataFrames to date-stamped CSV files for daily record keeping.
+        
+        Parameters:
+            index (int): Index of the trade in openPnl to close.
+            exitType (str): Classification of the exit action.
+            exitPrice (float, optional): Exit price. If None, uses CurrentPrice. Default is None.
+        
+        Returns:
+            None
+        """
         super().exitOrder(index, exitType, exitPrice)
         self.openPnl.to_csv(
             f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
@@ -655,12 +874,3 @@ class equityIntradayAlgoLogic(baseAlgoLogic):
         self.closedPnl.to_csv(
             f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_{self.humanTime.date()}_closedPnl.csv"
         )
-
-    # def pnlCalculator(self):
-    #     super().pnlCalculator()
-        # self.openPnl.to_csv(
-        #     f"{self.fileDir['backtestResultsOpenPnl']}{self.stockName}_{self.humanTime.date()}_openPnl.csv"
-        # )
-        # self.closedPnl.to_csv(
-        #     f"{self.fileDir['backtestResultsClosePnl']}{self.stockName}_{self.humanTime.date()}_closedPnl.csv"
-        # )
