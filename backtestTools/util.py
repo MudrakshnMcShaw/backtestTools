@@ -572,7 +572,7 @@ def calculate_mtm(closedPnl, saveFileDir, timeFrame="15T", mtm=False, equityMark
     mtm_df.set_index("Index", inplace=True)
 
     mtm_df = mtm_df.between_time("09:15:00", "15:29:00")
-    mtm_df = mtm_df[mtm_df.index.dayofweek < 5]
+    # mtm_df = mtm_df[mtm_df.index.dayofweek < 5]
 
     # Convert datetime index to IST epoch timestamps by subtracting 19800 seconds (UTC+5:30 offset)
     mtm_df['ti'] = (mtm_df.index.values.astype(np.int64) //
